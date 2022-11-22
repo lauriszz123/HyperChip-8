@@ -15,6 +15,7 @@ Requirements for HyperChip-8 to run:
 
 To run the source code, just download the repository. Once done, open a terminal
 in the project folder:
+
   Windows: love.exe .
   MacOS: love .
   Linux: love .
