@@ -68,11 +68,10 @@ function love.load()
 	cpu = CPU.create( screen, CPU_SPEED, 0x20000 )
 	cpu:reset()
 
-	local toks = c8c.create( "main.c8c" )
-	local toks = asm.compile( "bootloader.asm", "ROM/main.ch8" )
-	print( toks )
+	local toks = c8c.create( "main.c8c", "bootloader.asm" )
+	--local toks = asm.compile( "bootloader.asm", "ROM/main.ch8" )
 
-	cpu:loadProgram( "main.ch8" )
+	--cpu:loadProgram( "main.ch8" )
 end
 
 function love.keypressed( key )

@@ -604,7 +604,7 @@ local function output()
 	}
 end
 
-local out
+local out, variables
 
 --------------------------------------------------
 -- Name: compile
@@ -618,39 +618,56 @@ local out
 local function compile( tree )
 	if tree.type == "program" then
 		out = output()
+		variables = {}
+		out:push( "alias", "ra", "V0" )
+		out:push( "alias", "rb", "V1" )
+		out:push( "alias", "il", "V8" )
+		out:push( "alias", "ih", "V9" )
 		for i=1, #tree.program do
 			compile( tree.program[ i ] )
 		end
-		return cprog
+		out:push( "data:" )
+		for k, v in pairs( variables ) do
+			out:push( "var_"..k..": db", "0x0" )
+		end
+		return out
 	elseif tree.type == "vardef" then
-		compile( tree.expr )
-		--out:push()
+		local v = compile( tree.expr )
+		if v then
+			out:push( "LD", "ra", v )
+		end
+		out:push( "LD", "il", "var_"..tree.name..".low" )
+		out:push( "LD", "ih", "var_"..tree.name..".high" )
+		out:push( "LDI", "ih", "il" )
+		out:push( "LD", "[I]", "ra" )
+		variables[ tree.name ] = true
 	elseif tree.type == "expr" then
 		if tree.left.type == "num" and tree.right.type == "num" then
-			-- cprog:push( INS.LDR, 0 )
-			-- compile( tree.left )
-		else
+			out:push( "LD", "ra", compile( tree.left ) )
+		elseif tree.right.type == "num" and tree.left.type == "expr" then
 			compile( tree.left )
 		end
 		if tree.right.type == "num" then
-			-- cprog:push(  )
-			-- compile( tree.right )
+			out:push( "LD", "rb", compile( tree.right ) )
 		else
-			-- compile( tree.right )
-			-- cprog:push( INS.LDR, 1 )
-			-- compile( tree.left )
+			compile( tree.right )
+			local v = compile( tree.left )
+			if v then
+				out:push( "LD", "rb", v )
+			end
 		end
 		if tree.op == "+" then
-			--cprog:push( INS.ADD )
+			out:push( "ADD", "ra", "rb" )
 		end
 	elseif tree.type == "num" then
-		--cprog:push( tree.value )
+		return tree.value
 	end
 end
 
 return {
-	create = function( file )
+	create = function( file, out )
 		local contents, size = love.filesystem.read( file )
-		return compile( parse( tokenize( wrapper( contents ) ) ) )
+		local compiled = compile( parse( tokenize( wrapper( contents ) ) ) )
+		love.filesystem.write( out, table.concat( compiled, "\n" ) )
 	end
 }

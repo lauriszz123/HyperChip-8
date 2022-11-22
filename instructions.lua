@@ -41,8 +41,12 @@ local instructions = {}
 
 instructions[ 0x0000 ] = function( self, opcode )
     local address = bit.band( opcode, 0x0FFF )
+
+    -- HLT
+    if address == 0x0000 then
+    	self.isRunning = false
     -- THC - Toggle HyperChip8
-    if address == 0x00D0 then
+    elseif address == 0x00D0 then
     	self.hyper = not self.hyper
     -- CLS
     elseif address == 0x00E0 then
