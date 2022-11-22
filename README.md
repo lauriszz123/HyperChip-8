@@ -30,7 +30,7 @@ of conduct, and the process for submitting pull requests to us.
 ## Authors
 
   - **Laurynas Suopys** - *Project Creator* -
-    [PurpleBooth](https://github.com/lauriszz123)
+    [lauriszz123](https://github.com/lauriszz123)
 
 See also the list of
 [contributors](https://github.com/lauriszz123/HyperChip-8/contributors)
