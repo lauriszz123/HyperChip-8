@@ -8,7 +8,7 @@ You need Love2D which is free! And a code editor of your choice.
 
 ### Prerequisites
 
-Requirements for the software and other tools to build, test and push 
+Requirements for HyperChip-8 to run: 
 - [Love2D](https://love2d.org)
 
 ### Installing
