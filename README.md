@@ -1,6 +1,9 @@
 # HyperChip-8
 
 HyperChip-8 is a modified Chip-8 Interpreter, Assembler and a Compiler.
+It's purpose is to emulated Chip-8 as a Computer and not a game console.
+For this reason, some of the games from Chip-8 do not work. The main difference
+is that registers: PC, SP, I are stored in V registers.
 
 ## Getting Started
 
