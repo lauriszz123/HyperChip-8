@@ -5,7 +5,7 @@ HyperChip-8 is a modified Chip-8 Interpreter, Assembler and a Compiler.
 It's purpose is to emulated Chip-8 as a *Computer* and not a *Game Console*.
 For this reason, some of the games from Chip-8 do not work. The main difference
 is that registers: _Program Counter_, _Stack Pointer_ and _(I)_ are stored in V registers.
-For this reason games that use VA - VF Registers crash or run infinitely, until RAM end.
+For this reason games that use VA - VE Registers crash or run infinitely, until RAM end.
 
 ## Getting Started
 
