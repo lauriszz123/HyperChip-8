@@ -7,9 +7,17 @@ local function tokenize( name )
 	local file, size = love.filesystem.read( name )
 	local word = ""
 	local tokens = {}
-	for i=1, #file do
+	local i = 1
+	while i <= #file do
 		local c = file:sub( i,i )
-		if c:find( "[ \t\r\n,]" ) ~= nil then
+		if c == '[' then
+			i = i + 1
+			tokens[ #tokens + 1 ] = "*"..file:sub( i,i )
+			i = i + 1
+			if file:sub( i,i ) ~= ']' then
+				error( "Assembly error!", 0 )
+			end
+		elseif c:find( "[ \t\r\n,]" ) ~= nil then
 			if #word > 0 then
 				tokens[ #tokens + 1 ] = word
 				word = ""
@@ -22,6 +30,7 @@ local function tokenize( name )
 		else
 			word = word .. c
 		end
+		i = i + 1
 	end
 	if #word > 0 then
 		tokens[ #tokens + 1 ] = word
@@ -57,6 +66,7 @@ local INSTRUCTIONS = {
 
 local pc = 0x200
 local labels = {}
+local aliases = {}
 local function pre( tokens )
 	pc = 0x200
 	local i = 1
@@ -64,6 +74,14 @@ local function pre( tokens )
 		if tokens[ i ]:sub( 1, 1 ) == ":" then
 			labels[ tokens[ i ]:sub( 2 ) ] = pc
 			table.remove( tokens, i )
+		elseif tokens[ i ]:upper() == "ALIAS" then
+			table.remove( tokens, i )
+			local alias = table.remove( tokens, i )
+			aliases[ alias ] = table.remove( tokens, i )
+		elseif tokens[ i ]:upper() == "DB" then
+			i = i + 1
+			local count = tonumber( tokens[ i ] )
+			i = i + count + 1
 		else
 			local instruction = tokens[ i ]:upper()
 			if INSTRUCTIONS[ instruction ] then
@@ -109,13 +127,19 @@ local INSTRUCTIONS_COMPILE = {
 		prog:push( inst )
 	end;
 	[ "SE" ] = function( prog, vx, vy )
+		if aliases[ vx ] then
+			vx = aliases[ vx ]:upper()
+		end
+		if aliases[ vy ] then
+			vy = aliases[ vy ]:upper()
+		end
 		local vx = tonumber( "0x"..vx:sub( 2, 2 ) )
 		if vy:sub( 1, 1 ):upper() == "V" then
 			local inst = 0x5000
 			vy = tonumber( "0x"..vy:sub( 2, 2 ) )
 
 			inst = bit.bor( inst, bit.lshift( vx, DIGIT * 2 ) )
-			inst = bit.bot( inst, bit.lshift( vy, DIGIT ) )
+			inst = bit.bor( inst, bit.lshift( vy, DIGIT ) )
 
 			prog:push( inst )
 		else
@@ -123,19 +147,25 @@ local INSTRUCTIONS_COMPILE = {
 			vy = tonumber( vy )
 
 			inst = bit.bor( inst, bit.lshift( vx, DIGIT * 2 ) )
-			inst = bit.bot( inst, vy )
+			inst = bit.bor( inst, vy )
 
 			prog:push( inst )
 		end
 	end;
 	[ "SNE" ] = function( prog, vx, vy )
+		if aliases[ vx ] then
+			vx = aliases[ vx ]:upper()
+		end
+		if aliases[ vy ] then
+			vy = aliases[ vy ]:upper()
+		end
 		local vx = tonumber( "0x"..vx:sub( 2, 2 ) )
 		if vy:sub( 1, 1 ):upper() == "V" then
 			local inst = 0x9000
 			vy = tonumber( "0x"..vy:sub( 2, 2 ) )
 
 			inst = bit.bor( inst, bit.lshift( vx, DIGIT * 2 ) )
-			inst = bit.bot( inst, bit.lshift( vy, DIGIT ) )
+			inst = bit.bor( inst, bit.lshift( vy, DIGIT ) )
 
 			prog:push( inst )
 		else
@@ -143,12 +173,18 @@ local INSTRUCTIONS_COMPILE = {
 			vy = tonumber( vy )
 
 			inst = bit.bor( inst, bit.lshift( vx, DIGIT * 2 ) )
-			inst = bit.bot( inst, vy )
+			inst = bit.bor( inst, vy )
 
 			prog:push( inst )
 		end
 	end;
 	[ "LD" ] = function( prog, vx, vy )
+		if aliases[ vx ] then
+			vx = aliases[ vx ]:upper()
+		end
+		if aliases[ vy ] then
+			vy = aliases[ vy ]:upper()
+		end
 		if vx:sub( 1, 1 ):upper() == "I" then
 			local inst = 0xA000
 			if labels[ vy ] then
@@ -174,16 +210,22 @@ local INSTRUCTIONS_COMPILE = {
 			vy = tonumber( "0x"..vy:sub( 2, 2 ) )
 			local inst = bit.bor( 0xF033, bit.lshift( vy, DIGIT * 2 ) )
 			prog:push( inst )
-		elseif vx:upper() == "I" then
+		elseif vx:upper() == "*I" then
 			vy = tonumber( "0x"..vy:sub( 2, 2 ) )
 			local inst = bit.bor( 0xF055, bit.lshift( vy, DIGIT * 2 ) )
 			prog:push( inst )
 		else
 			vx = tonumber( "0x"..vx:sub( 2, 2 ) )
+			if type( vy ) == "number" then
+				local inst = bit.bor( 0x6000, bit.lshift( vx, DIGIT * 2 ) )
+				inst = bit.bor( inst, tonumber( vy ) )
+				prog:push( inst )
+				return
+			end
 			if vy:sub( 1, 1 ):upper() == "V" then
 				vy = tonumber( "0x"..vy:sub( 2, 2 ) )
 				local inst = bit.bor( 0x8000, bit.lshift( vx, DIGIT * 2 ) )
-				inst = bit.bot( inst, bit.lshift( vy, DIGIT ) )
+				inst = bit.bor( inst, bit.lshift( vy, DIGIT ) )
 				prog:push( inst )
 			elseif vy:upper() == "DT" then
 				local inst = bit.bor( 0xF007, bit.lshift( vx, DIGIT * 2 ) )
@@ -191,7 +233,7 @@ local INSTRUCTIONS_COMPILE = {
 			elseif vy:upper() == "K" then
 				local inst = bit.bor( 0xF00A, bit.lshift( vx, DIGIT * 2 ) )
 				prog:push( inst )
-			elseif vy:upper() == "I" then
+			elseif vy:upper() == "*I" then
 				local inst = bit.bor( 0xF065, bit.lshift( vx, DIGIT * 2 ) )
 				prog:push( inst )
 			else
@@ -202,10 +244,16 @@ local INSTRUCTIONS_COMPILE = {
 		end
 	end;
 	[ "ADD" ] = function( prog, vx, vy )
+		if aliases[ vx ] then
+			vx = aliases[ vx ]:upper()
+		end
+		if aliases[ vy ] then
+			vy = aliases[ vy ]:upper()
+		end
 		if vx:sub( 1, 1 ):upper() == "V" then
 			if vy:sub( 1, 1 ):upper() == "V" then
 				vx = tonumber( "0x"..vx:sub( 2, 2 ) )
-				vy = tonumber( "0x"..vx:sub( 2, 2 ) )
+				vy = tonumber( "0x"..vy:sub( 2, 2 ) )
 				local inst = bit.bor( 0x8004, bit.lshift( vx, DIGIT * 2 ) )
 				inst = bit.bor( 0x8004, bit.lshift( vy, DIGIT ) )
 				prog:push( inst )
@@ -223,10 +271,16 @@ local INSTRUCTIONS_COMPILE = {
 		end
 	end;
 	[ "OR" ] = function( prog, vx, vy )
+		if aliases[ vx ] then
+			vx = aliases[ vx ]:upper()
+		end
+		if aliases[ vy ] then
+			vy = aliases[ vy ]:upper()
+		end
 		if vx:sub( 1, 1 ):upper() == "V" then
 			if vy:sub( 1, 1 ):upper() == "V" then
 				vx = tonumber( "0x"..vx:sub( 2, 2 ) )
-				vy = tonumber( "0x"..vx:sub( 2, 2 ) )
+				vy = tonumber( "0x"..vy:sub( 2, 2 ) )
 				local inst = bit.bor( 0x8001, bit.lshift( vx, DIGIT * 2 ) )
 				inst = bit.bor( 0x8004, bit.lshift( vy, DIGIT ) )
 				prog:push( inst )
@@ -234,10 +288,16 @@ local INSTRUCTIONS_COMPILE = {
 		end
 	end;
 	[ "AND" ] = function( prog, vx, vy )
+		if aliases[ vx ] then
+			vx = aliases[ vx ]:upper()
+		end
+		if aliases[ vy ] then
+			vy = aliases[ vy ]:upper()
+		end
 		if vx:sub( 1, 1 ):upper() == "V" then
 			if vy:sub( 1, 1 ):upper() == "V" then
 				vx = tonumber( "0x"..vx:sub( 2, 2 ) )
-				vy = tonumber( "0x"..vx:sub( 2, 2 ) )
+				vy = tonumber( "0x"..vy:sub( 2, 2 ) )
 				local inst = bit.bor( 0x8001, bit.lshift( vx, DIGIT * 2 ) )
 				inst = bit.bor( 0x8002, bit.lshift( vy, DIGIT ) )
 				prog:push( inst )
@@ -245,10 +305,16 @@ local INSTRUCTIONS_COMPILE = {
 		end
 	end;
 	[ "XOR" ] = function( prog, vx, vy )
+		if aliases[ vx ] then
+			vx = aliases[ vx ]:upper()
+		end
+		if aliases[ vy ] then
+			vy = aliases[ vy ]:upper()
+		end
 		if vx:sub( 1, 1 ):upper() == "V" then
 			if vy:sub( 1, 1 ):upper() == "V" then
 				vx = tonumber( "0x"..vx:sub( 2, 2 ) )
-				vy = tonumber( "0x"..vx:sub( 2, 2 ) )
+				vy = tonumber( "0x"..vy:sub( 2, 2 ) )
 				local inst = bit.bor( 0x8001, bit.lshift( vx, DIGIT * 2 ) )
 				inst = bit.bor( 0x8003, bit.lshift( vy, DIGIT ) )
 				prog:push( inst )
@@ -256,10 +322,16 @@ local INSTRUCTIONS_COMPILE = {
 		end
 	end;
 	[ "SUB" ] = function( prog, vx, vy )
+		if aliases[ vx ] then
+			vx = aliases[ vx ]:upper()
+		end
+		if aliases[ vy ] then
+			vy = aliases[ vy ]:upper()
+		end
 		if vx:sub( 1, 1 ):upper() == "V" then
 			if vy:sub( 1, 1 ):upper() == "V" then
 				vx = tonumber( "0x"..vx:sub( 2, 2 ) )
-				vy = tonumber( "0x"..vx:sub( 2, 2 ) )
+				vy = tonumber( "0x"..vy:sub( 2, 2 ) )
 				local inst = bit.bor( 0x8001, bit.lshift( vx, DIGIT * 2 ) )
 				inst = bit.bor( 0x8005, bit.lshift( vy, DIGIT ) )
 				prog:push( inst )
@@ -267,10 +339,16 @@ local INSTRUCTIONS_COMPILE = {
 		end
 	end;
 	[ "SUBN" ] = function( prog, vx, vy )
+		if aliases[ vx ] then
+			vx = aliases[ vx ]:upper()
+		end
+		if aliases[ vy ] then
+			vy = aliases[ vy ]:upper()
+		end
 		if vx:sub( 1, 1 ):upper() == "V" then
 			if vy:sub( 1, 1 ):upper() == "V" then
 				vx = tonumber( "0x"..vx:sub( 2, 2 ) )
-				vy = tonumber( "0x"..vx:sub( 2, 2 ) )
+				vy = tonumber( "0x"..vy:sub( 2, 2 ) )
 				local inst = bit.bor( 0x8001, bit.lshift( vx, DIGIT * 2 ) )
 				inst = bit.bor( 0x8007, bit.lshift( vy, DIGIT ) )
 				prog:push( inst )
@@ -278,10 +356,16 @@ local INSTRUCTIONS_COMPILE = {
 		end
 	end;
 	[ "SHR" ] = function( prog, vx, vy )
+		if aliases[ vx ] then
+			vx = aliases[ vx ]:upper()
+		end
+		if aliases[ vy ] then
+			vy = aliases[ vy ]:upper()
+		end
 		if vx:sub( 1, 1 ):upper() == "V" then
 			if vy:sub( 1, 1 ):upper() == "V" then
 				vx = tonumber( "0x"..vx:sub( 2, 2 ) )
-				vy = tonumber( "0x"..vx:sub( 2, 2 ) )
+				vy = tonumber( "0x"..vy:sub( 2, 2 ) )
 				local inst = bit.bor( 0x8001, bit.lshift( vx, DIGIT * 2 ) )
 				inst = bit.bor( 0x8006, bit.lshift( vy, DIGIT ) )
 				prog:push( inst )
@@ -289,10 +373,16 @@ local INSTRUCTIONS_COMPILE = {
 		end
 	end;
 	[ "SHL" ] = function( prog, vx, vy )
+		if aliases[ vx ] then
+			vx = aliases[ vx ]:upper()
+		end
+		if aliases[ vy ] then
+			vy = aliases[ vy ]:upper()
+		end
 		if vx:sub( 1, 1 ):upper() == "V" then
 			if vy:sub( 1, 1 ):upper() == "V" then
 				vx = tonumber( "0x"..vx:sub( 2, 2 ) )
-				vy = tonumber( "0x"..vx:sub( 2, 2 ) )
+				vy = tonumber( "0x"..vy:sub( 2, 2 ) )
 				local inst = bit.bor( 0x8001, bit.lshift( vx, DIGIT * 2 ) )
 				inst = bit.bor( 0x800E, bit.lshift( vy, DIGIT ) )
 				prog:push( inst )
@@ -300,15 +390,24 @@ local INSTRUCTIONS_COMPILE = {
 		end
 	end;
 	[ "RND" ] = function( prog, vx, kk )
+		if aliases[ vx ] then
+			vx = aliases[ vx ]:upper()
+		end
 		local vx = tonumber( "0x"..vx:sub( 2, 2 ) )
 		kk = tonumber( kk )
 
 		local inst = bit.bor( 0xC000, bit.lshift( vx, DIGIT * 2 ) )
-		inst = bit.bot( inst, vy )
+		inst = bit.bor( inst, vy )
 
 		prog:push( inst )
 	end;
 	[ "DRW" ] = function( prog, vx, vy, n )
+		if aliases[ vx ] then
+			vx = aliases[ vx ]:upper()
+		end
+		if aliases[ vy ] then
+			vy = aliases[ vy ]:upper()
+		end
 		local vx = tonumber( "0x"..vx:sub( 2, 2 ) )
 		local vy = tonumber( "0x"..vy:sub( 2, 2 ) )
 		local n = tonumber( n )
@@ -319,28 +418,46 @@ local INSTRUCTIONS_COMPILE = {
 		prog:push( inst )
 	end;
 	[ "SKP" ] = function( prog, vx )
+		if aliases[ vx ] then
+			vx = aliases[ vx ]:upper()
+		end
 		local vx = tonumber( "0x"..vx:sub( 2, 2 ) )
 		local inst = bit.bor( 0xE09E, bit.lshift( vx, DIGIT * 2 ) )
 		prog:push( inst )
 	end;
 	[ "SKNP" ] = function( prog, vx )
+		if aliases[ vx ] then
+			vx = aliases[ vx ]:upper()
+		end
 		local vx = tonumber( "0x"..vx:sub( 2, 2 ) )
 		local inst = bit.bor( 0xE0A1, bit.lshift( vx, DIGIT * 2 ) )
 		prog:push( inst )
 	end;
 	[ "LDI" ] = function( prog, vx, vy )
+		if aliases[ vx ] then
+			vx = aliases[ vx ]:upper()
+		end
+		if aliases[ vy ] then
+			vy = aliases[ vy ]:upper()
+		end
 		vx = tonumber( "0x"..vx:sub( 2, 2 ) )
 		vy = tonumber( "0x"..vy:sub( 2, 2 ) )
 		local inst = bit.bor( 0x800F, bit.lshift( vx, DIGIT * 2 ) )
-		inst = bit.bot( inst, bit.lshift( vy, DIGIT ) )
+		inst = bit.bor( inst, bit.lshift( vy, DIGIT ) )
 		prog:push( inst )
 	end;
 	[ "PUSH" ] = function( prog, vx )
+		if aliases[ vx ] then
+			vx = aliases[ vx ]:upper()
+		end
 		vx = tonumber( "0x"..vx:sub( 2, 2 ) )
 		local inst = bit.bor( 0xF000, bit.lshift( vx, DIGIT * 2 ) )
 		prog:push( inst )
 	end;
 	[ "POP" ] = function( prog, vx )
+		if aliases[ vx ] then
+			vx = aliases[ vx ]:upper()
+		end
 		vx = tonumber( "0x"..vx:sub( 2, 2 ) )
 		local inst = bit.bor( 0xF001, bit.lshift( vx, DIGIT * 2 ) )
 		prog:push( inst )
@@ -355,9 +472,36 @@ local function compile( tokens )
 			table.insert( self, a )
 			table.insert( self, b )
 		end;
+		push2 = function( self, byte )
+			table.insert( self, byte )
+		end;
 	}
+
+	local function checkForDot( arg )
+		local first, second
+		for i=1, #arg do
+			local c = arg:sub( i, i )
+			if c == '.' then
+				first = arg:sub( 1, i - 1 )
+				second = arg:sub( i + 1, #arg )
+			end
+		end
+		if second == nil then
+			return arg
+		end
+		return first, second
+	end
+
+	local function convert( a, b )
+		if b == 'low' then
+			return bit.band( a, 0xFF )
+		elseif b == 'high' then
+			return bit.rshift( bit.band( a, 0xFF00 ), 8 )
+		end
+	end
+
 	while #tokens > 0 do
-		local inst = table.remove( tokens, 1 )
+		local inst = table.remove( tokens, 1 ):upper()
 		local isReg = false
 		if INSTRUCTIONS_COMPILE[ inst ] then
 			local args = {}
@@ -366,21 +510,30 @@ local function compile( tokens )
 			end
 
 			for i=1, #args do
-				if args[ i ]:sub( 1, 1 ):upper() == "V" then
+				local arg, func = checkForDot( args[ i ] )
+				if arg:sub( 1, 1 ):upper() == "V" then
 					if inst == "JP" then
 						isReg = true
 					end
-				elseif labels[ args[ i ] ] then
-					args[ i ] = labels[ args[ i ] ]
+				elseif labels[ arg ] then
+					if func then
+						args[ i ] = convert( labels[ arg ], func )
+					else
+						args[ i ] = labels[ arg ]
+					end
 				end
 			end
 
 			if isReg == true then
 				table.remove( args, 1 )
-				local arg = table.remove( tokens, 1 )
+				local arg, func = checkForDot( table.remove( tokens, 1 ) )
 
 				if labels[ arg ] then
-					arg = labels[ arg ]
+					if func then
+						args[ i ] = convert( labels[ arg ], func )
+					else
+						args[ i ] = labels[ arg ]
+					end
 				else
 					arg = tonumber( arg )
 				end
@@ -389,7 +542,15 @@ local function compile( tokens )
 				args[ #args + 1 ] = true
 			end
 
+			print( inst )
+			print( args )
+
 			INSTRUCTIONS_COMPILE[ inst ]( prog, unpack( args ) )
+		elseif inst:upper() == "DB" then
+			local count = tonumber( table.remove( tokens, 1 ) )
+			for i=1, count do
+				prog:push2( tonumber( table.remove( tokens, 1 ) ) )
+			end
 		end
 	end
 
@@ -400,6 +561,7 @@ return {
 	compile = function( inp, out )
 		local toks = tokenize( inp )
 		pre( toks )
+		print( labels )
 		local prog = compile( toks )
 
 		local file, errorstr = love.filesystem.newFile( out )

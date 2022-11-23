@@ -262,12 +262,12 @@ instructions[ 0xE000 ] = function( self, opcode )
     
     -- SKP Vx
     if op == 0x9E then
-    	if self.keyboard[ self.rV[ x ] ] == true then
+    	if self.keypad[ self.rV[ x ] ] == true then
         	self.rV[ R.PC ] = self.rV[ R.PC ] + NEXT_INSTR
     	end
     -- SKPN Vx
     elseif op == 0xA1 then
-    	if self.keyboard[ self.rV[ x ] ] ~= true then
+    	if self.keypad[ self.rV[ x ] ] ~= true then
         	self.rV[ R.PC ] = self.rV[ R.PC ] + NEXT_INSTR
     	end
     end
@@ -294,7 +294,7 @@ instructions[0xF000] = function(self, opcode)
     elseif op == 0x0A then
     	local keyPressed = false
         for i=0, 0xF do
-        	if self.keyboard[ i ] == true then
+        	if self.keypad[ i ] == true then
         		keyPressed = true
         		self.rV[ x ] = i
         		break

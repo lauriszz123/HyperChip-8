@@ -44,7 +44,7 @@ local function tablePrint( t, space )
 			tablePrint( v, space .. "\t" )
 		else
 			if type( v ) == "number" then
-				oldPrint( space, k, "=", string.format( "%02x", v ) )
+				oldPrint( space, k, "=", string.format( "%04x", v ) )
 			else
 				oldPrint( space, k, "=", v )
 			end
@@ -69,20 +69,22 @@ function love.load()
 	cpu:reset()
 
 	local toks = c8c.create( "main.c8c", "bootloader.asm" )
-	--local toks = asm.compile( "bootloader.asm", "ROM/main.ch8" )
+	local toks = asm.compile( "bootloader.asm", "ROM/main.ch8" )
 
-	--cpu:loadProgram( "main.ch8" )
+	cpu:loadProgram( "main.ch8" )
 end
 
-function love.keypressed( key )
+function love.keypressed( key, scancode )
 	if keys[ key ] then
-		cpu.keyboard[ keys[ key ] ] = true
+		cpu.keypad[ keys[ key ] ] = true
 	end
+	print( "Pressed:", key, scancode )
 end
-function love.keyreleased( key )
+function love.keyreleased( key, scancode )
 	if keys[ key ] then
-		cpu.keyboard[ keys[ key ] ] = false
+		cpu.keypad[ keys[ key ] ] = false
 	end
+	print( "Released:", key, scancode )
 end
 
 function love.update()

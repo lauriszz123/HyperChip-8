@@ -638,12 +638,14 @@ local function compile( tree )
 		out:push( "alias", "rb", "V1" )
 		out:push( "alias", "il", "V8" )
 		out:push( "alias", "ih", "V9" )
+		out:push( "alias", "rI", "VC" )
+		out:push( "alias", "rPC", "VE" )
 		for i=1, #tree.program do
 			compile( tree.program[ i ] )
 		end
 		out:push( "data:" )
 		for k, v in pairs( variables ) do
-			out:push( "var_"..k..": db", "0x0" )
+			out:push( "var_"..k..": db", "0x1", "0x0" )
 		end
 		return out
 	elseif tree.type == "block" then
@@ -660,33 +662,55 @@ local function compile( tree )
 		out:push( "LDI", "ih", "il" )
 		out:push( "LD", "[I]", "ra" )
 		variables[ tree.name ] = true
+	elseif tree.type == "call" then
+		if tree.name == "draw" then
+			local y = compile( tree.args[ 2 ] )
+			if y then
+				out:push( "LD", "rb", y )
+			else
+				out:push( "LD", "rb", "ra" )
+			end
+			local x = compile( tree.args[ 1 ] )
+			if x then
+				out:push( "LD", "ra", x )
+			end
+			local f = compile( tree.args[ 3 ] )
+			if f then
+				out:push( "LD", "V3", f )
+				out:push( "LD", "F", "V3" )
+			else
+				error()
+			end
+			out:push( "DRW", "ra", "rb", 5 )
+		end
 	elseif tree.type == "ifblock" then
+		local currifcount = ifcount
 		ifcount = ifcount + 1
-		out:push( "LD", "il", "if_"..ifcount..".low" )
-		out:push( "LD", "ih", "if_"..ifcount..".high" )
+		out:push( "LD", "il", "if_"..currifcount..".low" )
+		out:push( "LD", "ih", "if_"..currifcount..".high" )
 		out:push( "LDI", "ih", "il" )
 		compile( tree.cond )
-		out:push( "JP", "I" )
+		out:push( "LD", "rPC", "rI" )
 		if tree.elseblock then
-			out:push( "LD", "il", "ifelse_"..ifcount..".low" )
-			out:push( "LD", "ih", "ifelse_"..ifcount..".high" )
+			out:push( "LD", "il", "ifelse_"..currifcount..".low" )
+			out:push( "LD", "ih", "ifelse_"..currifcount..".high" )
 			out:push( "LDI", "ih", "il" )
-			out:push( "JP", "I" )
+			out:push( "LD", "rPC", "rI" )
 		else
-			out:push( "LD", "il", "ifend_"..ifcount..".low" )
-			out:push( "LD", "ih", "ifend_"..ifcount..".high" )
+			out:push( "LD", "il", "ifend_"..currifcount..".low" )
+			out:push( "LD", "ih", "ifend_"..currifcount..".high" )
 			out:push( "LDI", "ih", "il" )
-			out:push( "JP", "I" )
+			out:push( "LD", "rPC", "rI" )
 		end
 
-		out:push( "if_"..ifcount..":" )
+		out:push( "if_"..currifcount..":" )
 		compile( tree.trueblock )
 
 		if tree.elseblock then
-			out:push( "ifelse_"..ifcount..":" )
+			out:push( "ifelse_"..currifcount..":" )
 			compile( tree.elseblock )
 		else
-			out:push( "ifend_"..ifcount..":" )
+			out:push( "ifend_"..currifcount..":" )
 		end
 	elseif tree.type == "expr" then
 		if tree.left.type == "num" and tree.right.type == "num" then

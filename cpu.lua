@@ -49,7 +49,7 @@ return {
 			memory = {};
 			ramSize = ramSize;
 			screen = screen;
-			keyboard = {};
+			keypad = {};
 
 			rV = {};
 			interupt = false;
@@ -67,7 +67,7 @@ return {
 
 				for i=0, 0xF do
 					self.rV[ i ] = 0x0
-					self.keyboard[ i ] = 0x0
+					self.keypad[ i ] = 0x0
 				end
 
 				self.rV[ R.PC ] = 0x200
