@@ -148,7 +148,7 @@ instructions[ 0x8000 ] = function( self, opcode )
         local sum = self.rV[ x ] + self.rV[ y ]
         
         self.rV[ R.FLAG ] = ( sum > 0xFF ) and 1 or 0
-        self.rV[ x ] = ( self.rV[ x ] + self.rV[ y ] ) % 0x100
+        self.rV[ x ] = sum % 0x100
     -- SUB Vx, Vy
     elseif op == 0x5 then
         self.rV[ R.FLAG ] = ( self.rV[ x ] > self.rV[ y ] ) and 1 or 0
@@ -161,6 +161,24 @@ instructions[ 0x8000 ] = function( self, opcode )
     elseif op == 0x7 then
         self.rV[ R.FLAG ] = ( self.rV[ y ] > self.rV[ x ] ) and 1 or 0
         self.rV[ x ] = ( self.rV[ y ] - self.rV[ x ] ) % 0x100
+    -- MUL Vx, Vy
+    elseif op == 0x8 then
+        local sum = self.rV[ x ] * self.rV[ y ]
+        
+        self.rV[ R.FLAG ] = ( sum > 0xFF ) and 1 or 0
+        self.rV[ x ] = sum % 0x100
+    -- DIV Vx, Vy
+    elseif op == 0x9 then
+        self.rV[ x ] = math.floor( self.rV[ x ] / self.rV[ y ] )
+    -- POW Vx, Vy
+    elseif op == 0xA then
+        local sum = self.rV[ x ] ^ self.rV[ y ]
+        
+        self.rV[ R.FLAG ] = ( sum > 0xFF ) and 1 or 0
+        self.rV[ x ] = sum % 0x100
+    -- MOD Vx, Vy
+    elseif op == 0xB then
+        self.rV[ x ] = self.rV[ x ] % self.rV[ y ]
     -- SHL Vx
     elseif op == 0xE then
         self.rV[ R.FLAG ] = ( bit.band( self.rV[ x ], 0x80 ) == 0x80 ) and 1 or 0

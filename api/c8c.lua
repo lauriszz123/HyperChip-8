@@ -102,7 +102,7 @@ local function tokenize( input )
 
 	-- Check if a charachter is an operator
 	local function isOp( v )
-		return v:find( "[%+%-%*/=]" ) ~= nil
+		return v:find( "[%+%-%*/%^%%<=>]" ) ~= nil
 	end
 
 	-- do while loops until a certain charachter is met.
@@ -256,6 +256,14 @@ local function parse( tokens )
 		end
 	end
 
+	local PRECEDENCE = {
+		["||"] = 1,
+		["&&"] = 2,
+		["<"] = 3, [">"] = 3, ["<="] = 3, [">="] = 3, ["=="] = 3, ["!="] = 3,
+		["+"] = 4, ["-"] = 4,
+		["*"] = 5, ["/"] = 5, ["%"] = 5,
+	}
+
 	--------------------------------------------------
 	-- Name: expr
 	--
@@ -264,17 +272,21 @@ local function parse( tokens )
 	--
 	-- Description: Parse a mathematical expresion.
 	--------------------------------------------------
-	function expr( left )
+	function expr( left, myPrec )
+		local myPrec = myPrec or 0
 		local left = left or atom()
 		if tokens.peek() then
 			if tokens.peek().type == "op" then
-				local op = tokens.next().value
-				return {
-					type = "expr",
-					op = op,
-					left = left,
-					right = expr()
-				}
+				local otherPrec = PRECEDENCE[ tokens.peek().value ]
+				if otherPrec > myPrec then
+					local op = tokens.next().value
+					return expr( {
+						type = "expr",
+						op = op,
+						left = left,
+						right = expr( atom(), otherPrec )
+					}, myPrec )
+				end
 			end
 		end
 		return left
@@ -409,12 +421,14 @@ local function parse( tokens )
 		local cond = expr()
 		local tb = block()
 		local el
-		if tokens.peek().value == "else" then
-			expect( "id", "else" )
-			if tokens.peek().value == "if" then
-				el = ifb()
-			else
-				el = block()
+		if tokens.peek() then
+			if tokens.peek().value == "else" then
+				expect( "id", "else" )
+				if tokens.peek().value == "if" then
+					el = ifb()
+				else
+					el = block()
+				end
 			end
 		end
 		return {
@@ -604,7 +618,7 @@ local function output()
 	}
 end
 
-local out, variables
+local out, variables, ifcount
 
 --------------------------------------------------
 -- Name: compile
@@ -619,6 +633,7 @@ local function compile( tree )
 	if tree.type == "program" then
 		out = output()
 		variables = {}
+		ifcount = 0
 		out:push( "alias", "ra", "V0" )
 		out:push( "alias", "rb", "V1" )
 		out:push( "alias", "il", "V8" )
@@ -631,6 +646,10 @@ local function compile( tree )
 			out:push( "var_"..k..": db", "0x0" )
 		end
 		return out
+	elseif tree.type == "block" then
+		for i=1, #tree.block do
+			compile( tree.block[ i ] )
+		end
 	elseif tree.type == "vardef" then
 		local v = compile( tree.expr )
 		if v then
@@ -641,6 +660,34 @@ local function compile( tree )
 		out:push( "LDI", "ih", "il" )
 		out:push( "LD", "[I]", "ra" )
 		variables[ tree.name ] = true
+	elseif tree.type == "ifblock" then
+		ifcount = ifcount + 1
+		out:push( "LD", "il", "if_"..ifcount..".low" )
+		out:push( "LD", "ih", "if_"..ifcount..".high" )
+		out:push( "LDI", "ih", "il" )
+		compile( tree.cond )
+		out:push( "JP", "I" )
+		if tree.elseblock then
+			out:push( "LD", "il", "ifelse_"..ifcount..".low" )
+			out:push( "LD", "ih", "ifelse_"..ifcount..".high" )
+			out:push( "LDI", "ih", "il" )
+			out:push( "JP", "I" )
+		else
+			out:push( "LD", "il", "ifend_"..ifcount..".low" )
+			out:push( "LD", "ih", "ifend_"..ifcount..".high" )
+			out:push( "LDI", "ih", "il" )
+			out:push( "JP", "I" )
+		end
+
+		out:push( "if_"..ifcount..":" )
+		compile( tree.trueblock )
+
+		if tree.elseblock then
+			out:push( "ifelse_"..ifcount..":" )
+			compile( tree.elseblock )
+		else
+			out:push( "ifend_"..ifcount..":" )
+		end
 	elseif tree.type == "expr" then
 		if tree.left.type == "num" and tree.right.type == "num" then
 			out:push( "LD", "ra", compile( tree.left ) )
@@ -658,6 +705,30 @@ local function compile( tree )
 		end
 		if tree.op == "+" then
 			out:push( "ADD", "ra", "rb" )
+		elseif tree.op == "-" then
+			out:push( "SUB", "ra", "rb" )
+		elseif tree.op == "*" then
+			out:push( "MUL", "ra", "rb" )
+		elseif tree.op == "/" then
+			out:push( "DIV", "ra", "rb" )
+		elseif tree.op == "%" then
+			out:push( "MOD", "ra", "rb" )
+		elseif tree.op == "^" then
+			out:push( "POW", "ra", "rb" )
+		elseif tree.op == ">" then
+			out:push( "SUBN", "ra", "rb" )
+			out:push( "SE", "VF", "0x1" )
+		elseif tree.op == "<" then
+			out:push( "SUB", "ra", "rb" )
+			out:push( "SE", "VF", "0x1" )
+		elseif tree.op == ">=" then
+			out:push( "SUBN", "ra", "rb" )
+			out:push( "SE", "ra", "0x0" )
+			out:push( "SE", "VF", "0x1" )
+		elseif tree.op == "<=" then
+			out:push( "SUB", "ra", "rb" )
+			out:push( "SE", "ra", "0x0" )
+			out:push( "SE", "VF", "0x1" )
 		end
 	elseif tree.type == "num" then
 		return tree.value
@@ -667,7 +738,10 @@ end
 return {
 	create = function( file, out )
 		local contents, size = love.filesystem.read( file )
-		local compiled = compile( parse( tokenize( wrapper( contents ) ) ) )
+		local parsed = parse( tokenize( wrapper( contents ) ) )
+		print( parsed )
+		local compiled = compile( parsed )
+		print( compiled )
 		love.filesystem.write( out, table.concat( compiled, "\n" ) )
 	end
 }

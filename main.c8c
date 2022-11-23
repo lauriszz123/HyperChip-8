@@ -1,1 +1,7 @@
-var x = (1 + 2) + 3
+if 1 > 2 {
+	var x = 2
+} else if 1 > 3 {
+	var y = 2
+} else {
+	var z = 2
+}
