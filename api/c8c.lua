@@ -102,7 +102,7 @@ local function tokenize( input )
 
 	-- Check if a charachter is an operator
 	local function isOp( v )
-		return v:find( "[%+%-%*/%^%%<=>]" ) ~= nil
+		return v:find( "[%+%-%*/%^%%<!=>]" ) ~= nil
 	end
 
 	-- do while loops until a certain charachter is met.
@@ -242,7 +242,7 @@ local function parse( tokens )
 				else
 					return {
 						type = "fetch",
-						value = name,
+						name = name,
 					}
 				end
 			elseif tokens.peek().type == "num" then
@@ -629,7 +629,7 @@ local out, variables, ifcount
 -- Description: compiles to assembly code
 -- the parsed ast tree.
 --------------------------------------------------
-local function compile( tree )
+local function compile( tree, reg )
 	if tree.type == "program" then
 		out = output()
 		variables = {}
@@ -643,6 +643,7 @@ local function compile( tree )
 		for i=1, #tree.program do
 			compile( tree.program[ i ] )
 		end
+		out:push( "HLT" )
 		out:push( "data:" )
 		for k, v in pairs( variables ) do
 			out:push( "var_"..k..": db", "0x1", "0x0" )
@@ -664,13 +665,13 @@ local function compile( tree )
 		variables[ tree.name ] = true
 	elseif tree.type == "call" then
 		if tree.name == "draw" then
-			local y = compile( tree.args[ 2 ] )
+			local y = compile( tree.args[ 2 ], 1 )
 			if y then
 				out:push( "LD", "rb", y )
 			else
 				out:push( "LD", "rb", "ra" )
 			end
-			local x = compile( tree.args[ 1 ] )
+			local x = compile( tree.args[ 1 ], 0 )
 			if x then
 				out:push( "LD", "ra", x )
 			end
@@ -691,11 +692,14 @@ local function compile( tree )
 		out:push( "LDI", "ih", "il" )
 		compile( tree.cond )
 		out:push( "LD", "rPC", "rI" )
+
+		local elseblock = false
 		if tree.elseblock then
 			out:push( "LD", "il", "ifelse_"..currifcount..".low" )
 			out:push( "LD", "ih", "ifelse_"..currifcount..".high" )
 			out:push( "LDI", "ih", "il" )
 			out:push( "LD", "rPC", "rI" )
+			elseblock = true
 		else
 			out:push( "LD", "il", "ifend_"..currifcount..".low" )
 			out:push( "LD", "ih", "ifend_"..currifcount..".high" )
@@ -706,23 +710,32 @@ local function compile( tree )
 		out:push( "if_"..currifcount..":" )
 		compile( tree.trueblock )
 
+		out:push( "LD", "il", "ifend_"..currifcount..".low" )
+		out:push( "LD", "ih", "ifend_"..currifcount..".high" )
+		out:push( "LDI", "ih", "il" )
+		out:push( "LD", "rPC", "rI" )
+
 		if tree.elseblock then
 			out:push( "ifelse_"..currifcount..":" )
 			compile( tree.elseblock )
-		else
-			out:push( "ifend_"..currifcount..":" )
 		end
+		out:push( "ifend_"..currifcount..":" )
 	elseif tree.type == "expr" then
 		if tree.left.type == "num" and tree.right.type == "num" then
 			out:push( "LD", "ra", compile( tree.left ) )
 		elseif tree.right.type == "num" and tree.left.type == "expr" then
-			compile( tree.left )
+			compile( tree.left, 0 )
+		else
+			local x = compile( tree.left, 0 )
+			if x then
+				out:push( "LD", "ra", x )
+			end
 		end
 		if tree.right.type == "num" then
 			out:push( "LD", "rb", compile( tree.right ) )
 		else
-			compile( tree.right )
-			local v = compile( tree.left )
+			compile( tree.right, 0 )
+			local v = compile( tree.left, 1 )
 			if v then
 				out:push( "LD", "rb", v )
 			end
@@ -753,6 +766,19 @@ local function compile( tree )
 			out:push( "SUB", "ra", "rb" )
 			out:push( "SE", "ra", "0x0" )
 			out:push( "SE", "VF", "0x1" )
+		elseif tree.op == "==" then
+			out:push( "SNE", "ra", "rb" )
+		elseif tree.op == "!=" then
+			out:push( "SE", "ra", "rb" )
+		end
+	elseif tree.type == "fetch" then
+		out:push( "LD", "il", "var_"..tree.name..".low" )
+		out:push( "LD", "ih", "var_"..tree.name..".high" )
+		out:push( "LDI", "ih", "il" )
+		if reg == 0 then
+			out:push( "LD", "ra", "[I]" )
+		else
+			out:push( "LD", "rb", "[I]" )
 		end
 	elseif tree.type == "num" then
 		return tree.value

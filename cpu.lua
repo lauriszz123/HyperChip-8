@@ -58,7 +58,7 @@ return {
 
 			reset = function( self )
 				for i=0, self.ramSize - 1 do
-					if i < #MEM_FONT then
+					if i <= #MEM_FONT then
 						self.memory[ i ] = MEM_FONT[ i + 1 ]
 					else
 						self.memory[ i ] = 0x0
@@ -71,7 +71,7 @@ return {
 				end
 
 				self.rV[ R.PC ] = 0x200
-				self.rV[ R.SP ] = 0x20000
+				self.rV[ R.SP ] = self.ramSize - 1
 				self.rV[ R.I ] = 0
 				self.interupt = false;
 

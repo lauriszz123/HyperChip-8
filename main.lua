@@ -45,6 +45,8 @@ local function tablePrint( t, space )
 		else
 			if type( v ) == "number" then
 				oldPrint( space, k, "=", string.format( "%04x", v ) )
+			elseif tonumber( v ) then
+				oldPrint( space, k, "=", string.format( "%04x", tonumber( v ) ) )
 			else
 				oldPrint( space, k, "=", v )
 			end
@@ -58,14 +60,22 @@ function print( ... )
 	if type( args ) == "table" then
 		tablePrint( args )
 	else
-		oldPrint( ... )
+		local c = { ... }
+		for i=1, #c do
+			if tonumber( c[ i ] ) then
+				c[ i ] = string.format( "%04x", tonumber( c[ i ] ) )
+			elseif type( c[ i ] ) == "number" then
+				c[ i ] = string.format( "%04x", c[ i ] )
+			end
+		end
+		oldPrint( unpack( c ) )
 	end
 end
 
 function love.load()
 	screen:init()
 
-	cpu = CPU.create( screen, CPU_SPEED, 0x20000 )
+	cpu = CPU.create( screen, CPU_SPEED, 0x10000 )
 	cpu:reset()
 
 	local toks = c8c.create( "main.c8c", "bootloader.asm" )

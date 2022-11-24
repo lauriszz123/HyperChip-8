@@ -29,12 +29,12 @@ local DECIMAL = 10
 
 -- Registers
 local R = {
-	ST = 0xA;
-	DT = 0xB;
-	I  = 0xC;
-	SP = 0xD;
-	PC = 0xE;
-	FLAG = 0xF;
+    ST = 0xA;
+    DT = 0xB;
+    I  = 0xC;
+    SP = 0xD;
+    PC = 0xE;
+    FLAG = 0xF;
 }
 
 local instructions = {}
@@ -187,6 +187,7 @@ instructions[ 0x8000 ] = function( self, opcode )
     elseif op == 0xF then
     	local z = bit.lshift( self.rV[ x ], DIGIT * 2 )
     	self.rV[ R.I ] = bit.bor( z, self.rV[ y ] )
+        print( self.rV[ R.PC ], self.rV[ R.I ] )
     end
 end
 
@@ -247,7 +248,7 @@ instructions[ 0xD000 ] = function(self, opcode)
                     self.rV[ R.FLAG ] = 1
                 end
                 
-                self.screen.putPixel( xx, yy + 1, bit.bxor( value, 1 ) == 1 and true or false )
+                self.screen.putPixel( xx, yy + 1, bit.bxor( value, 1 ) == 1 )
             end
         end
     end

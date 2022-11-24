@@ -40,6 +40,7 @@ local function tokenize( name )
 end
 
 local INSTRUCTIONS = {
+	[ "HLT" ] = 1;
 	[ "CLS" ] = 1;
 	[ "RET" ] = 1;
 	[ "JP" ] = 2;
@@ -73,6 +74,7 @@ local function pre( tokens )
 	while i <= #tokens do
 		if tokens[ i ]:sub( 1, 1 ) == ":" then
 			labels[ tokens[ i ]:sub( 2 ) ] = pc
+			print( tokens[ i ]:sub( 2 ), pc )
 			table.remove( tokens, i )
 		elseif tokens[ i ]:upper() == "ALIAS" then
 			table.remove( tokens, i )
@@ -81,6 +83,7 @@ local function pre( tokens )
 		elseif tokens[ i ]:upper() == "DB" then
 			i = i + 1
 			local count = tonumber( tokens[ i ] )
+			pc = pc + 1
 			i = i + count + 1
 		else
 			local instruction = tokens[ i ]:upper()
@@ -104,6 +107,9 @@ end
 
 local DIGIT = 4
 local INSTRUCTIONS_COMPILE = {
+	[ "HLT" ] = function( prog )
+		prog:push( 0x0000 )
+	end;
 	[ "CLS" ] = function( prog )
 		prog:push( 0x00E0 )
 	end;
@@ -218,7 +224,7 @@ local INSTRUCTIONS_COMPILE = {
 			vx = tonumber( "0x"..vx:sub( 2, 2 ) )
 			if type( vy ) == "number" then
 				local inst = bit.bor( 0x6000, bit.lshift( vx, DIGIT * 2 ) )
-				inst = bit.bor( inst, tonumber( vy ) )
+				inst = bit.bor( inst, vy )
 				prog:push( inst )
 				return
 			end
@@ -497,6 +503,8 @@ local function compile( tokens )
 			return bit.band( a, 0xFF )
 		elseif b == 'high' then
 			return bit.rshift( bit.band( a, 0xFF00 ), 8 )
+		else
+			error()
 		end
 	end
 
@@ -511,7 +519,7 @@ local function compile( tokens )
 
 			for i=1, #args do
 				local arg, func = checkForDot( args[ i ] )
-				if arg:sub( 1, 1 ):upper() == "V" then
+				if arg:sub( 1, 1 ):upper() == "V" and #arg == 2 then
 					if inst == "JP" then
 						isReg = true
 					end
@@ -542,8 +550,8 @@ local function compile( tokens )
 				args[ #args + 1 ] = true
 			end
 
-			print( inst )
-			print( args )
+			--print( inst )
+			--print( args )
 
 			INSTRUCTIONS_COMPILE[ inst ]( prog, unpack( args ) )
 		elseif inst:upper() == "DB" then
