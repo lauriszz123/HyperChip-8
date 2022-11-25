@@ -128,9 +128,13 @@ local INSTRUCTIONS_COMPILE = {
 		prog:push( inst )
 	end;
 	[ "CALL" ] = function( prog, addr )
-		addr = tonumber( addr )
-		local inst = bit.bor( 0x2000, addr )
-		prog:push( inst )
+		if addr == "I" then
+			prog:push( 0x0CA1 )
+		else
+			addr = tonumber( addr )
+			local inst = bit.bor( 0x2000, addr )
+			prog:push( inst )
+		end
 	end;
 	[ "SE" ] = function( prog, vx, vy )
 		if aliases[ vx ] then

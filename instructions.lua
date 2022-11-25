@@ -45,9 +45,12 @@ instructions[ 0x0000 ] = function( self, opcode )
     -- HLT
     if address == 0x0000 then
     	self.isRunning = false
-    -- THC - Toggle HyperChip8
+    -- THC - Turn On HyperChip-8
     elseif address == 0x00D0 then
-    	self.hyper = not self.hyper
+    	self.hyper = true
+    -- LOW - Turn off HyperChip-8
+    elseif address == 0x00DE then
+        self.hyper = false
     -- CLS
     elseif address == 0x00E0 then
     	self.screen:set()
@@ -58,6 +61,12 @@ instructions[ 0x0000 ] = function( self, opcode )
         self.rV[ R.SP ] = self.rV[ R.SP ] + 1
         
         self.rV[ R.PC ] = self.memory[ self.rV[ R.SP ] ]
+    elseif address == 0x0CA1 then
+        local sp = self.rV[ R.SP ]
+        self.memory[ sp ] = self.rV[ R.PC ]
+        self.rV[ R.SP ] = sp - 1
+
+        self.rV[ R.PC ] = self.rV[ R.I ]
     end
 end
 

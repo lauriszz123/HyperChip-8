@@ -15,6 +15,7 @@ return {
 				self.canvas:setFilter( "nearest", "nearest" )
 				self.font = love.graphics.newFont( "font.ttf", 4 )
 				love.graphics.setFont( self.font )
+				self.font:setLineHeight( 2 )
 
 				print( "Screen initiated." )
 			end;

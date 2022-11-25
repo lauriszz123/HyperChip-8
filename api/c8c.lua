@@ -242,6 +242,7 @@ local function parse( tokens )
 				else
 					return {
 						type = "fetch",
+						line = tokens.getLine(),
 						name = name,
 					}
 				end
@@ -282,6 +283,7 @@ local function parse( tokens )
 					local op = tokens.next().value
 					return expr( {
 						type = "expr",
+						line = tokens.getLine(),
 						op = op,
 						left = left,
 						right = expr( atom(), otherPrec )
@@ -303,7 +305,7 @@ local function parse( tokens )
 	local function defargs()
 		expect( "prec", "(", "(Argument Definition)" )
 		local args = {}
-		while tokens.eof() == false do
+		while tokens.eof() == false and not (tokens.peek().type == "prec" and tokens.peek().value == ")") do
 			local id = expect( "id" )
 			args[ #args + 1 ] = id
 			if tokens.peek().type == "prec" then
@@ -335,6 +337,7 @@ local function parse( tokens )
 		local value = expr()
 		return {
 			type = "vardef";
+			line = tokens.getLine(),
 			name = name;
 			expr = value;
 		}
@@ -376,6 +379,7 @@ local function parse( tokens )
 
 		return {
 			type = "call",
+			line = tokens.getLine(),
 			name = name,
 			args = args
 		}
@@ -405,6 +409,7 @@ local function parse( tokens )
 		expect( "prec", '}' )
 		return {
 			type = "asmcode",
+			line = tokens.getLine(),
 			asmCode = asmCode;
 		}
 	end
@@ -433,6 +438,7 @@ local function parse( tokens )
 		end
 		return {
 			type = "ifblock",
+			line = tokens.getLine(),
 			cond = cond,
 			trueblock = tb,
 			elseblock = el,
@@ -452,6 +458,7 @@ local function parse( tokens )
 		local b = block()
 		return {
 			type = "whileblock",
+			line = tokens.getLine(),
 			cond = cond,
 			body = b,
 		}
@@ -474,6 +481,7 @@ local function parse( tokens )
 		local value = expr()
 		return {
 			type = "defunc",
+			line = tokens.getLine(),
 			name = name,
 			args = args,
 			body = value
@@ -492,6 +500,7 @@ local function parse( tokens )
 		local v = expr()
 		return {
 			type = "return",
+			line = tokens.getLine(),
 			value = v;
 		}
 	end
@@ -511,6 +520,7 @@ local function parse( tokens )
 		local block = block()
 		return {
 			type = "defunc",
+			line = tokens.getLine(),
 			name = name,
 			args = args,
 			body = block
@@ -553,51 +563,50 @@ local function parse( tokens )
 		expect( "prec", '}' )
 		return {
 			type = "block",
+			line = tokens.getLine(),
 			block = prog
 		}
 	end
 
 	--------------------------------------------------
-	-- Name: program
+	-- Name: library
 	--
 	-- Arguments: none
 	--
-	-- Description: Parse a program which
-	-- can contain any
-	-- block of code ( functions included ).
+	-- Description: Parse a code file which
+	-- can contain only functions and var definitions.
 	--------------------------------------------------
-	local function program()
-		local prog = {}
+	local function library()
+		local globals = {}
+		local functions = {}
 		while tokens.eof() == false do
 
 			if tokens.peek() then
 				if tokens.peek().value == "var" then
-					prog[ #prog + 1 ] = var()
+					globals[ #globals + 1 ] = var()
 				elseif tokens.peek().value == "def" then
-					prog[ #prog + 1 ] = def()
-				elseif tokens.peek().value == "if" then
-					prog[ #prog + 1 ] = ifb()
-				elseif tokens.peek().value == "while" then
-					prog[ #prog + 1 ] = whileb()
+					functions[ #functions + 1 ] = def()
 				elseif tokens.peek().value == "func" then
-					prog[ #prog + 1 ] = func()
+					functions[ #functions + 1 ] = func()
 				elseif tokens.peek().value == "__asm__" then
 					prog[ #prog + 1 ] = toasm()
 				else
-					prog[ #prog + 1 ] = call()
+					tokens.error( "Cannot parse the file in top-level. Unexpected expression encountered." )
 				end
 			else
 				break
 			end
 		end
 		return {
-			type = "program",
-			program = prog
+			type = "library",
+			line = tokens.getLine(),
+			globals = globals,
+			functions = functions
 		}
 	end
 
-	-- Return the program as an AST Tree.
-	return program()
+	-- Return the library as an AST Tree.
+	return library()
 end
 
 -- Output object that pushes asm code
@@ -618,7 +627,53 @@ local function output()
 	}
 end
 
-local out, variables, ifcount
+local out, gVars, ifcount, usedReturn
+
+--------------------------------------------------
+-- Name: environment
+--
+-- Arguments:
+--	parent - a parent environment object.
+--
+-- Description: create a variable and function
+-- environemnt which can have a parent
+-- environment.
+--------------------------------------------------
+local function environment( parent )
+	return {
+		parent = parent;
+		variables = {};
+		localCount = 0;
+		define = function( self, tree, varType, value )
+			if value == "local" then
+				self.localCount = self.localCount + 1
+				self.variables[ tree.name ] = {
+					type = varType,
+					value = self.localCount
+				}
+			else
+				self.variables[ tree.name ] = {
+					type = varType,
+				}
+			end
+		end;
+		lookup = function( self, tree )
+			local current = self
+			while current ~= nil do
+				if current.variables[ tree.name ] then
+					return current
+				else
+					current = current.parent
+				end
+			end
+			error( "Line:"..tree.line..": Variable '"..tree.name.."' not found.", 0 )
+		end;
+		get = function( self, tree )
+			local current = self:lookup( tree )
+			return current.variables[ tree.name ]
+		end;
+	}
+end
 
 --------------------------------------------------
 -- Name: compile
@@ -630,30 +685,56 @@ local out, variables, ifcount
 -- the parsed ast tree.
 --------------------------------------------------
 local function compile( tree, reg )
-	if tree.type == "program" then
+	if tree.type == "library" then
 		out = output()
-		variables = {}
+		gVars = environment()
 		ifcount = 0
+		usedReturn = false
 		out:push( "alias", "ra", "V0" )
 		out:push( "alias", "rb", "V1" )
 		out:push( "alias", "il", "V8" )
 		out:push( "alias", "ih", "V9" )
 		out:push( "alias", "rI", "VC" )
+		out:push( "alias", "rBP", "VB" )
+		out:push( "alias", "rSP", "VD" )
 		out:push( "alias", "rPC", "VE" )
-		for i=1, #tree.program do
-			compile( tree.program[ i ] )
+		for i=1, #tree.globals do
+			compile( tree.globals[ i ] )
+		end
+		out:push( "LD", "il", "libEnd.low" )
+		out:push( "LD", "ih", "libEnd.high" )
+		out:push( "LDI", "ih", "il" )
+		out:push( "LD", "rPC", "rI" )
+		for i=1, #tree.functions do
+			compile( tree.functions[ i ] )
+		end
+		out:push( "libEnd:" )
+		if gVars:get( {name="main"} ).type == "function" then
+			out:push( "LD", "il", "func_main.low" )
+			out:push( "LD", "ih", "func_main.high" )
+			out:push( "LDI", "ih", "il" )
+			out:push( "CALL", "I" )
+		else
+			error( "No entry function found. (function main)", 0 )
 		end
 		out:push( "HLT" )
 		out:push( "data:" )
-		for k, v in pairs( variables ) do
-			out:push( "var_"..k..": db", "0x1", "0x0" )
+		for k, v in pairs( gVars.variables ) do
+			if v.type == "global_variable" then
+				out:push( "var_"..k..": db", "0x1", "0x0" )
+			end
 		end
 		return out
 	elseif tree.type == "block" then
 		for i=1, #tree.block do
-			compile( tree.block[ i ] )
+			compile( tree.block[ i ], reg )
 		end
 	elseif tree.type == "vardef" then
+		if reg == "function" then
+			gVars:define( tree, "local_variable", "local" )
+		else
+			gVars:define( tree, "global_variable" )
+		end
 		local v = compile( tree.expr )
 		if v then
 			out:push( "LD", "ra", v )
@@ -662,7 +743,25 @@ local function compile( tree, reg )
 		out:push( "LD", "ih", "var_"..tree.name..".high" )
 		out:push( "LDI", "ih", "il" )
 		out:push( "LD", "[I]", "ra" )
-		variables[ tree.name ] = true
+	elseif tree.type == "defunc" then
+		out:push( "func_"..tree.name..":" )
+		out:push( "PUSH", "rBP" )
+		out:push( "LD", "rBP", "rSP" )
+		gVars:define( tree, "function" )
+		gVars = environment( gVars )
+		for i=1, #tree.args do
+			gVars:define( {name=tree.args[ i ].value}, "local_variable", "local" )
+		end
+		compile( tree.body, "function" )
+		if usedReturn == false then
+			out:push( "POP", "rBP" )
+			out:push( "RET" )
+		end
+		gVars = gVars.parent
+		usedReturn = false
+	elseif tree.type == "return" then
+		usedReturn = true
+		compile( tree.value )
 	elseif tree.type == "call" then
 		if tree.name == "draw" then
 			local y = compile( tree.args[ 2 ], 1 )
@@ -683,6 +782,22 @@ local function compile( tree, reg )
 				error()
 			end
 			out:push( "DRW", "ra", "rb", 5 )
+		else
+			if gVars:get( tree ).type == "function" then
+				for i=#tree.args, 1, -1 do
+					local v = compile( tree.args[ i ], 0 )
+					if v then
+						out:push( "LD", "ra", v )
+						out:push( "PUSH", "ra" )
+					else
+						out:push( "PUSH", "ra" )
+					end
+				end
+				out:push( "LD", "il", "func_" .. tree.name .. ".low" )
+				out:push( "LD", "ih", "func_" .. tree.name .. ".high" )
+				out:push( "LDI", "ih", "il" )
+				out:push( "CALL", "I" )
+			end
 		end
 	elseif tree.type == "ifblock" then
 		local currifcount = ifcount
@@ -772,13 +887,15 @@ local function compile( tree, reg )
 			out:push( "SE", "ra", "rb" )
 		end
 	elseif tree.type == "fetch" then
-		out:push( "LD", "il", "var_"..tree.name..".low" )
-		out:push( "LD", "ih", "var_"..tree.name..".high" )
-		out:push( "LDI", "ih", "il" )
-		if reg == 0 then
-			out:push( "LD", "ra", "[I]" )
-		else
-			out:push( "LD", "rb", "[I]" )
+		if gVars:get( tree ).type == "global_variable" then
+			out:push( "LD", "il", "var_"..tree.name..".low" )
+			out:push( "LD", "ih", "var_"..tree.name..".high" )
+			out:push( "LDI", "ih", "il" )
+			if reg == 0 then
+				out:push( "LD", "ra", "[I]" )
+			else
+				out:push( "LD", "rb", "[I]" )
+			end
 		end
 	elseif tree.type == "num" then
 		return tree.value
@@ -787,11 +904,17 @@ end
 
 return {
 	create = function( file, out )
-		local contents, size = love.filesystem.read( file )
-		local parsed = parse( tokenize( wrapper( contents ) ) )
-		print( parsed )
-		local compiled = compile( parsed )
-		print( compiled )
-		love.filesystem.write( out, table.concat( compiled, "\n" ) )
+		--local co, err = coroutine.create( function()
+			local contents, size = love.filesystem.read( file )
+			local parsed = parse( tokenize( wrapper( contents ) ) )
+			print( parsed )
+			local compiled = compile( parsed )
+			print( compiled )
+			love.filesystem.write( out, table.concat( compiled, "\n" ) )
+		--end )
+		--while coroutine.status( co ) == "suspended" do
+		--	local ok, err = coroutine.resume( co )
+		--	if not ok then return err end
+		--end
 	end
 }

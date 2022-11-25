@@ -72,16 +72,26 @@ function print( ... )
 	end
 end
 
+local errMessages
+
 function love.load()
 	screen:init()
 
 	cpu = CPU.create( screen, CPU_SPEED, 0x10000 )
 	cpu:reset()
 
-	local toks = c8c.create( "main.c8c", "bootloader.asm" )
-	local toks = asm.compile( "bootloader.asm", "ROM/main.ch8" )
+	errMessage = c8c.create( "main.c8c", "bootloader.asm" )
+	if errMessage == nil then
+		asm.compile( "bootloader.asm", "ROM/main.ch8" )
 
-	cpu:loadProgram( "main.ch8" )
+		cpu:loadProgram( "main.ch8" )
+	else
+		screen:set()
+		love.graphics.setColor( 1,0,0 )
+		love.graphics.printf( errMessage, 1, 1, 159 )
+		love.graphics.printf( "Press R to Restart!", 160 / 2 - (19 * 4 / 2), 128 - 6, 159 )
+		screen:reset()
+	end
 end
 
 function love.keypressed( key, scancode )
@@ -94,6 +104,25 @@ function love.keyreleased( key, scancode )
 	if keys[ key ] then
 		cpu.keypad[ keys[ key ] ] = false
 	end
+	if errMessage ~= nil and key == 'r' then
+		screen:set()
+		love.graphics.clear()
+		screen:reset()
+		errMessage = c8c.create( "main.c8c", "bootloader.asm" )
+		if errMessage == nil then
+			cpu:reset()
+			asm.compile( "bootloader.asm", "ROM/main.ch8" )
+
+			cpu:loadProgram( "main.ch8" )
+			errMessage = nil
+		else
+			screen:set()
+			love.graphics.setColor( 1,0,0 )
+			love.graphics.printf( errMessage, 1, 1, 159 )
+			love.graphics.printf( "Press R to Restart!", 160 / 2 - (19 * 4 / 2), 128 - 6, 159 )
+			screen:reset()
+		end
+	end
 	print( "Released:", key, scancode )
 end
 
@@ -102,6 +131,7 @@ function love.update()
 end
 
 function love.draw()
+	love.graphics.setColor( 1,1,1 )
 	screen:draw()
 	love.graphics.print( "PC: 0x"..string.format( "%04x", cpu.rV[ 0xE ] ), 400, 2 )
 end

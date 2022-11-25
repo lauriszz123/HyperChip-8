@@ -1,8 +1,0 @@
-var x = 0
-var y = 0
-
-if( 1 != 0 ) {
-	draw( x, y, 1 )
-} else {
-	draw( x, y, 0 )
-}
