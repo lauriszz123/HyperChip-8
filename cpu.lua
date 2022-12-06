@@ -50,6 +50,8 @@ return {
 			ramSize = ramSize;
 			screen = screen;
 			keypad = {};
+			DT = 0;
+			ST = 0;
 
 			rV = {};
 			interupt = false;
@@ -74,6 +76,8 @@ return {
 				self.rV[ R.SP ] = self.ramSize - 1
 				self.rV[ R.I ] = 0
 				self.interupt = false;
+				self.DT = 0;
+				self.ST = 0;
 
 				self.isRunning = true;
 
@@ -132,13 +136,13 @@ return {
 					end
 				end
 				-- Decrement the delay timer.
-			    if self.rV[ R.DT ] > 0 then
-			        self.rV[ R.DT ] = self.rV[ R.DT ] - 1
+			    if self.DT > 0 then
+			        self.DT = self.DT - 1
 			    end
 			    
 			    -- Decrement the sound timer.
-			    if self.rV[ R.ST ] > 0 then
-			        self.rV[ R.ST ] = self.rV[ R.ST ] - 1
+			    if self.ST > 0 then
+			        self.ST = self.ST - 1
 			    end
 			end;
 		}

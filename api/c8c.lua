@@ -554,7 +554,12 @@ local function parse( tokens )
 				elseif tokens.peek().value == "}" then
 					break
 				else
-					prog[ #prog + 1 ] = call()
+					local name = expect( "id" ).value
+					if tokens.peek().type == "op" then
+						prog[ #prog + 1 ] = varset( name )
+					else
+						prog[ #prog + 1 ] = call( name )
+					end
 				end
 			else
 				break
@@ -645,17 +650,10 @@ local function environment( parent )
 		variables = {};
 		localCount = 0;
 		define = function( self, tree, varType, value )
-			if value == "local" then
-				self.localCount = self.localCount + 1
-				self.variables[ tree.name ] = {
-					type = varType,
-					value = self.localCount
-				}
-			else
-				self.variables[ tree.name ] = {
-					type = varType,
-				}
-			end
+			self.variables[ tree.name ] = {
+				type = varType,
+				value = value
+			}
 		end;
 		lookup = function( self, tree )
 			local current = self
@@ -692,6 +690,7 @@ local function compile( tree, reg )
 		usedReturn = false
 		out:push( "alias", "ra", "V0" )
 		out:push( "alias", "rb", "V1" )
+		out:push( "alias", "rc", "V2" )
 		out:push( "alias", "il", "V8" )
 		out:push( "alias", "ih", "V9" )
 		out:push( "alias", "rI", "VC" )
@@ -730,19 +729,21 @@ local function compile( tree, reg )
 			compile( tree.block[ i ], reg )
 		end
 	elseif tree.type == "vardef" then
-		if reg == "function" then
-			gVars:define( tree, "local_variable", "local" )
-		else
-			gVars:define( tree, "global_variable" )
-		end
 		local v = compile( tree.expr )
 		if v then
 			out:push( "LD", "ra", v )
 		end
-		out:push( "LD", "il", "var_"..tree.name..".low" )
-		out:push( "LD", "ih", "var_"..tree.name..".high" )
-		out:push( "LDI", "ih", "il" )
-		out:push( "LD", "[I]", "ra" )
+		if reg == "function" then
+			gVars:define( tree, "local_variable", gVars.localCount )
+			out:push( "PUSH", "ra" )
+			gVars.localCount = gVars.localCount + 1
+		else
+			gVars:define( tree, "global_variable" )
+			out:push( "LD", "il", "var_"..tree.name..".low" )
+			out:push( "LD", "ih", "var_"..tree.name..".high" )
+			out:push( "LDI", "ih", "il" )
+			out:push( "LD", "[I]", "ra" )
+		end
 	elseif tree.type == "defunc" then
 		out:push( "func_"..tree.name..":" )
 		out:push( "PUSH", "rBP" )
@@ -750,9 +751,12 @@ local function compile( tree, reg )
 		gVars:define( tree, "function" )
 		gVars = environment( gVars )
 		for i=1, #tree.args do
-			gVars:define( {name=tree.args[ i ].value}, "local_variable", "local" )
+			gVars:define( {name=tree.args[ i ].value}, "local_variable", -i )
 		end
 		compile( tree.body, "function" )
+		for i=1, gVars.localCount do
+			out:push( "POP", "V5" )
+		end
 		if usedReturn == false then
 			out:push( "POP", "rBP" )
 			out:push( "RET" )
@@ -767,20 +771,29 @@ local function compile( tree, reg )
 			local y = compile( tree.args[ 2 ], 1 )
 			if y then
 				out:push( "LD", "rb", y )
+				out:push( "PUSH", "rb" )
 			else
-				out:push( "LD", "rb", "ra" )
+				out:push( "PUSH", "rb" )
 			end
+
 			local x = compile( tree.args[ 1 ], 0 )
 			if x then
 				out:push( "LD", "ra", x )
+				out:push( "PUSH", "ra" )
+			else
+				out:push( "PUSH", "ra" )
 			end
-			local f = compile( tree.args[ 3 ] )
+
+			local f = compile( tree.args[ 3 ], 0 )
 			if f then
 				out:push( "LD", "V3", f )
 				out:push( "LD", "F", "V3" )
 			else
-				error()
+				out:push( "LD", "F", "ra" )
 			end
+
+			out:push( "POP", "ra" )
+			out:push( "POP", "rb" )
 			out:push( "DRW", "ra", "rb", 5 )
 		else
 			if gVars:get( tree ).type == "function" then
@@ -840,7 +853,7 @@ local function compile( tree, reg )
 			out:push( "LD", "ra", compile( tree.left ) )
 		elseif tree.right.type == "num" and tree.left.type == "expr" then
 			compile( tree.left, 0 )
-		else
+		elseif not tree.left.type == "fetch" then
 			local x = compile( tree.left, 0 )
 			if x then
 				out:push( "LD", "ra", x )
@@ -895,6 +908,25 @@ local function compile( tree, reg )
 				out:push( "LD", "ra", "[I]" )
 			else
 				out:push( "LD", "rb", "[I]" )
+			end
+		else
+			local var = gVars:get( tree )
+			if var.value < 0 then
+				if reg == 0 then
+					out:push( "LD", "ra", math.abs( var.value ) + 2 )
+					out:push( "NGET", "ra" )
+				else
+					out:push( "LD", "rb", math.abs( var.value ) + 2 )
+					out:push( "NGET", "rb" )
+				end
+			else
+				if reg == 0 then
+					out:push( "LD", "ra", math.abs( var.value ) )
+					out:push( "GET", "ra" )
+				else
+					out:push( "LD", "rb", math.abs( var.value ) )
+					out:push( "GET", "rb" )
+				end
 			end
 		end
 	elseif tree.type == "num" then

@@ -1,7 +1,6 @@
 -- Author: Laurynas Suopys (lauriszz123)
 --
--- Description:
--- Instructions for HyperChip-8
+-- Description: Instructions for HyperChip-8
 
 local bit = bit32 or bit
 
@@ -29,8 +28,7 @@ local DECIMAL = 10
 
 -- Registers
 local R = {
-    ST = 0xA;
-    DT = 0xB;
+    BP  = 0xB;
     I  = 0xC;
     SP = 0xD;
     PC = 0xE;
@@ -45,11 +43,11 @@ instructions[ 0x0000 ] = function( self, opcode )
     -- HLT
     if address == 0x0000 then
     	self.isRunning = false
-    -- THC - Turn On HyperChip-8
-    elseif address == 0x00D0 then
+    -- HCE - Turn On HyperChip-8
+    elseif address == 0x00E1 then
     	self.hyper = true
     -- LOW - Turn off HyperChip-8
-    elseif address == 0x00DE then
+    elseif address == 0x00E2 then
         self.hyper = false
     -- CLS
     elseif address == 0x00E0 then
@@ -61,6 +59,9 @@ instructions[ 0x0000 ] = function( self, opcode )
         self.rV[ R.SP ] = self.rV[ R.SP ] + 1
         
         self.rV[ R.PC ] = self.memory[ self.rV[ R.SP ] ]
+    elseif address >= 0x00F0 and address <= 0x0CA0 then
+        -- SYSTEM CALLS PRE DEFINED
+        
     elseif address == 0x0CA1 then
         local sp = self.rV[ R.SP ]
         self.memory[ sp ] = self.rV[ R.PC ]
@@ -188,6 +189,12 @@ instructions[ 0x8000 ] = function( self, opcode )
     -- MOD Vx, Vy
     elseif op == 0xB then
         self.rV[ x ] = self.rV[ x ] % self.rV[ y ]
+    -- NSET Vx, Vy
+    elseif op == 0xC then
+        self.memory[ self.rV[ R.BP ] + self.rV[ x ] ] = self.rV[ y ]
+    -- SET Vx, Vy
+    elseif op == 0xD then
+        self.memory[ self.rV[ R.BP ] - self.rV[ x ] ] = self.rV[ y ]
     -- SHL Vx
     elseif op == 0xE then
         self.rV[ R.FLAG ] = ( bit.band( self.rV[ x ], 0x80 ) == 0x80 ) and 1 or 0
@@ -292,14 +299,27 @@ instructions[0xF000] = function(self, opcode)
     	local sp = self.rV[ R.SP ]
     	self.memory[ sp ] = self.rV[ x ]
     	self.rV[ R.SP ] = sp - 1
+        print( "PUSH", "V"..x )
     -- POP Vx
     elseif op == 0x01 then
     	local sp = self.rV[ R.SP ] + 1
     	self.rV[ x ] = self.memory[ sp ]
     	self.rV[ R.SP ] = sp
+        print( "POP", "V"..x )
+    -- NGET Vx
+    elseif op == 0x02 then
+        local v = self.memory[ self.rV[ R.BP ] + self.rV[ x ] ]
+        self.rV[ x ] = v
+        print( "NGET", "V"..x )
+    -- GET Vx
+    elseif op == 0x03 then
+        local v = self.memory[ self.rV[ R.BP ] - self.rV[ x ] ]
+        self.rV[ x ] = v
+        print( "GET", "V"..x )
     -- LD Vx, DT
     elseif op == 0x07 then
-        self.rV[ x ] = self.rV[ R.DT ]
+        self.rV[ x ] = self.DT
+        print( "LD", "V"..x, "DT" )
     -- LD Vx, K
     elseif op == 0x0A then
     	local keyPressed = false
@@ -315,10 +335,10 @@ instructions[0xF000] = function(self, opcode)
         end
     -- LD DT, Vx
     elseif op == 0x15 then
-        self.rV[ R.DT ] = self.rV[ x ]
+        self.DT = self.rV[ x ]
     -- LD ST, Vx
     elseif op == 0x18 then
-        self.rV[ R.ST ] = self.rV[ x ]
+        self.ST = self.rV[ x ]
     -- ADD I, Vx
     elseif op == 0x1E then
         self.rV[ R.I ] = self.rV[ R.I ] + self.rV[ x ]

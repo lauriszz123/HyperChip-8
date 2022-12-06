@@ -1,21 +1,33 @@
 local lgp = love.graphics.print
 local localScreen = {}
 
+local switch = {
+	[ 0 ] = function( self )
+		self:clear()
+	end;
+}
+
 return {
 	create = function( w, h, s )
 		return {
+			mode = 0;
 			width = w;
 			height = h;
 			scale = s;
+			events = {};
 
 			init = function( self )
-				local ok = love.window.setMode( self.width * self.scale, self.height * self.scale )
-				if not ok then error( "Unable to set up the screen.", 0 ) end
 				self.canvas = love.graphics.newCanvas( self.width, self.height )
 				self.canvas:setFilter( "nearest", "nearest" )
 				self.font = love.graphics.newFont( "font.ttf", 4 )
 				love.graphics.setFont( self.font )
 				self.font:setLineHeight( 2 )
+
+				self:set()
+
+				love.graphics.clear( 0, 0, 0 )
+
+				self:reset()
 
 				print( "Screen initiated." )
 			end;
@@ -34,6 +46,13 @@ return {
 			clear = function ( self )
 				love.graphics.clear()
 				localScreen = {}
+			end;
+
+			pushEvent = function( self, t, ... )
+				table.insert( self.events, {
+					type = t,
+					args = { ... }
+				} )
 			end;
 
 			putPixel = function( x, y, on )
@@ -60,9 +79,17 @@ return {
 				lgp( char, x, y )
 			end;
 
-			draw = function( self )
-				love.graphics.setColor( 1, 1, 1 )
-				love.graphics.draw( self.canvas, 0, 0, 0, self.scale, self.scale )
+			handle = function( self )
+				self:set()
+				while #self.events > 0 do
+					local event = table.remove( self.events, 1 )
+					switch[ event.type ]( self, unpack( event.args ) )
+				end
+				love.graphics.setCanvas()
+			end;
+
+			draw = function( self, x, y )
+				love.graphics.draw( self.canvas, x, y, 0, 3, 3 )
 			end;
 		}
 	end;

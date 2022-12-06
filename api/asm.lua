@@ -49,6 +49,7 @@ local INSTRUCTIONS = {
 	[ "SNE" ] = 3;
 	[ "LD" ] = 3;
 	[ "ADD" ] = 3;
+	[ "MUL" ] = 3;
 	[ "OR" ] = 3;
 	[ "AND" ] = 3;
 	[ "XOR" ] = 3;
@@ -63,6 +64,10 @@ local INSTRUCTIONS = {
 	[ "LDI" ] = 3;
 	[ "PUSH" ] = 2;
 	[ "POP" ] = 2;
+	[ "NGET" ] = 2;
+	[ "GET" ] = 2;
+	[ "NSET" ] = 3;
+	[ "SET" ] = 3;
 }
 
 local pc = 0x200
@@ -83,8 +88,8 @@ local function pre( tokens )
 		elseif tokens[ i ]:upper() == "DB" then
 			i = i + 1
 			local count = tonumber( tokens[ i ] )
-			pc = pc + 1
-			i = i + count + 1
+			pc = pc + count
+			i = i + (count + 1)
 		else
 			local instruction = tokens[ i ]:upper()
 			if INSTRUCTIONS[ instruction ] then
@@ -265,7 +270,7 @@ local INSTRUCTIONS_COMPILE = {
 				vx = tonumber( "0x"..vx:sub( 2, 2 ) )
 				vy = tonumber( "0x"..vy:sub( 2, 2 ) )
 				local inst = bit.bor( 0x8004, bit.lshift( vx, DIGIT * 2 ) )
-				inst = bit.bor( 0x8004, bit.lshift( vy, DIGIT ) )
+				inst = bit.bor( inst, bit.lshift( vy, DIGIT ) )
 				prog:push( inst )
 			else
 				vx = tonumber( "0x"..vx:sub( 2, 2 ) )
@@ -291,8 +296,8 @@ local INSTRUCTIONS_COMPILE = {
 			if vy:sub( 1, 1 ):upper() == "V" then
 				vx = tonumber( "0x"..vx:sub( 2, 2 ) )
 				vy = tonumber( "0x"..vy:sub( 2, 2 ) )
-				local inst = bit.bor( 0x8001, bit.lshift( vx, DIGIT * 2 ) )
-				inst = bit.bor( 0x8004, bit.lshift( vy, DIGIT ) )
+				local inst = bit.bor( 0x8004, bit.lshift( vx, DIGIT * 2 ) )
+				inst = bit.bor( inst, bit.lshift( vy, DIGIT ) )
 				prog:push( inst )
 			end
 		end
@@ -308,8 +313,8 @@ local INSTRUCTIONS_COMPILE = {
 			if vy:sub( 1, 1 ):upper() == "V" then
 				vx = tonumber( "0x"..vx:sub( 2, 2 ) )
 				vy = tonumber( "0x"..vy:sub( 2, 2 ) )
-				local inst = bit.bor( 0x8001, bit.lshift( vx, DIGIT * 2 ) )
-				inst = bit.bor( 0x8002, bit.lshift( vy, DIGIT ) )
+				local inst = bit.bor( 0x8002, bit.lshift( vx, DIGIT * 2 ) )
+				inst = bit.bor( inst, bit.lshift( vy, DIGIT ) )
 				prog:push( inst )
 			end
 		end
@@ -325,8 +330,8 @@ local INSTRUCTIONS_COMPILE = {
 			if vy:sub( 1, 1 ):upper() == "V" then
 				vx = tonumber( "0x"..vx:sub( 2, 2 ) )
 				vy = tonumber( "0x"..vy:sub( 2, 2 ) )
-				local inst = bit.bor( 0x8001, bit.lshift( vx, DIGIT * 2 ) )
-				inst = bit.bor( 0x8003, bit.lshift( vy, DIGIT ) )
+				local inst = bit.bor( 0x8003, bit.lshift( vx, DIGIT * 2 ) )
+				inst = bit.bor( inst, bit.lshift( vy, DIGIT ) )
 				prog:push( inst )
 			end
 		end
@@ -342,8 +347,25 @@ local INSTRUCTIONS_COMPILE = {
 			if vy:sub( 1, 1 ):upper() == "V" then
 				vx = tonumber( "0x"..vx:sub( 2, 2 ) )
 				vy = tonumber( "0x"..vy:sub( 2, 2 ) )
-				local inst = bit.bor( 0x8001, bit.lshift( vx, DIGIT * 2 ) )
-				inst = bit.bor( 0x8005, bit.lshift( vy, DIGIT ) )
+				local inst = bit.bor( 0x8005, bit.lshift( vx, DIGIT * 2 ) )
+				inst = bit.bor( inst, bit.lshift( vy, DIGIT ) )
+				prog:push( inst )
+			end
+		end
+	end;
+	[ "MUL" ] = function( prog, vx, vy )
+		if aliases[ vx ] then
+			vx = aliases[ vx ]:upper()
+		end
+		if aliases[ vy ] then
+			vy = aliases[ vy ]:upper()
+		end
+		if vx:sub( 1, 1 ):upper() == "V" then
+			if vy:sub( 1, 1 ):upper() == "V" then
+				vx = tonumber( "0x"..vx:sub( 2, 2 ) )
+				vy = tonumber( "0x"..vy:sub( 2, 2 ) )
+				local inst = bit.bor( 0x8008, bit.lshift( vx, DIGIT * 2 ) )
+				inst = bit.bor( inst, bit.lshift( vy, DIGIT ) )
 				prog:push( inst )
 			end
 		end
@@ -359,8 +381,8 @@ local INSTRUCTIONS_COMPILE = {
 			if vy:sub( 1, 1 ):upper() == "V" then
 				vx = tonumber( "0x"..vx:sub( 2, 2 ) )
 				vy = tonumber( "0x"..vy:sub( 2, 2 ) )
-				local inst = bit.bor( 0x8001, bit.lshift( vx, DIGIT * 2 ) )
-				inst = bit.bor( 0x8007, bit.lshift( vy, DIGIT ) )
+				local inst = bit.bor( 0x8007, bit.lshift( vx, DIGIT * 2 ) )
+				inst = bit.bor( inst, bit.lshift( vy, DIGIT ) )
 				prog:push( inst )
 			end
 		end
@@ -376,8 +398,8 @@ local INSTRUCTIONS_COMPILE = {
 			if vy:sub( 1, 1 ):upper() == "V" then
 				vx = tonumber( "0x"..vx:sub( 2, 2 ) )
 				vy = tonumber( "0x"..vy:sub( 2, 2 ) )
-				local inst = bit.bor( 0x8001, bit.lshift( vx, DIGIT * 2 ) )
-				inst = bit.bor( 0x8006, bit.lshift( vy, DIGIT ) )
+				local inst = bit.bor( 0x8006, bit.lshift( vx, DIGIT * 2 ) )
+				inst = bit.bor( inst, bit.lshift( vy, DIGIT ) )
 				prog:push( inst )
 			end
 		end
@@ -393,8 +415,8 @@ local INSTRUCTIONS_COMPILE = {
 			if vy:sub( 1, 1 ):upper() == "V" then
 				vx = tonumber( "0x"..vx:sub( 2, 2 ) )
 				vy = tonumber( "0x"..vy:sub( 2, 2 ) )
-				local inst = bit.bor( 0x8001, bit.lshift( vx, DIGIT * 2 ) )
-				inst = bit.bor( 0x800E, bit.lshift( vy, DIGIT ) )
+				local inst = bit.bor( 0x800E, bit.lshift( vx, DIGIT * 2 ) )
+				inst = bit.bor( inst, bit.lshift( vy, DIGIT ) )
 				prog:push( inst )
 			end
 		end
@@ -471,6 +493,56 @@ local INSTRUCTIONS_COMPILE = {
 		vx = tonumber( "0x"..vx:sub( 2, 2 ) )
 		local inst = bit.bor( 0xF001, bit.lshift( vx, DIGIT * 2 ) )
 		prog:push( inst )
+	end;
+	[ "NGET" ] = function( prog, vx )
+		if aliases[ vx ] then
+			vx = aliases[ vx ]:upper()
+		end
+		vx = tonumber( "0x"..vx:sub( 2, 2 ) )
+		local inst = bit.bor( 0xF002, bit.lshift( vx, DIGIT * 2 ) )
+		prog:push( inst )
+	end;
+	[ "GET" ] = function( prog, vx )
+		if aliases[ vx ] then
+			vx = aliases[ vx ]:upper()
+		end
+		vx = tonumber( "0x"..vx:sub( 2, 2 ) )
+		local inst = bit.bor( 0xF003, bit.lshift( vx, DIGIT * 2 ) )
+		prog:push( inst )
+	end;
+	[ "NSET" ] = function( prog, vx, vy )
+		if aliases[ vx ] then
+			vx = aliases[ vx ]:upper()
+		end
+		if aliases[ vy ] then
+			vy = aliases[ vy ]:upper()
+		end
+		if vx:sub( 1, 1 ):upper() == "V" then
+			if vy:sub( 1, 1 ):upper() == "V" then
+				vx = tonumber( "0x"..vx:sub( 2, 2 ) )
+				vy = tonumber( "0x"..vy:sub( 2, 2 ) )
+				local inst = bit.bor( 0x8001, bit.lshift( vx, DIGIT * 2 ) )
+				inst = bit.bor( 0x800C, bit.lshift( vy, DIGIT ) )
+				prog:push( inst )
+			end
+		end
+	end;
+	[ "SET" ] = function( prog, vx, vy )
+		if aliases[ vx ] then
+			vx = aliases[ vx ]:upper()
+		end
+		if aliases[ vy ] then
+			vy = aliases[ vy ]:upper()
+		end
+		if vx:sub( 1, 1 ):upper() == "V" then
+			if vy:sub( 1, 1 ):upper() == "V" then
+				vx = tonumber( "0x"..vx:sub( 2, 2 ) )
+				vy = tonumber( "0x"..vy:sub( 2, 2 ) )
+				local inst = bit.bor( 0x8001, bit.lshift( vx, DIGIT * 2 ) )
+				inst = bit.bor( 0x800D, bit.lshift( vy, DIGIT ) )
+				prog:push( inst )
+			end
+		end
 	end;
 }
 
