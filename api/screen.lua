@@ -44,7 +44,7 @@ return {
 			end;
 
 			clear = function ( self )
-				love.graphics.clear()
+				love.graphics.clear( 0, 0, 0 )
 				localScreen = {}
 			end;
 

@@ -79,8 +79,6 @@ return {
 				self.DT = 0;
 				self.ST = 0;
 
-				self.isRunning = true;
-
 				print( "CPU Reset." )
 			end;
 
@@ -133,16 +131,19 @@ return {
 						if err then
 							return
 						end
+						if self.isRunning == false then
+							break
+						end
 					end
-				end
-				-- Decrement the delay timer.
-			    if self.DT > 0 then
-			        self.DT = self.DT - 1
-			    end
-			    
-			    -- Decrement the sound timer.
-			    if self.ST > 0 then
-			        self.ST = self.ST - 1
+					-- Decrement the delay timer.
+				    if self.DT > 0 then
+				        self.DT = self.DT - 1
+				    end
+				    
+				    -- Decrement the sound timer.
+				    if self.ST > 0 then
+				        self.ST = self.ST - 1
+				    end
 			    end
 			end;
 		}

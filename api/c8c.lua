@@ -323,23 +323,41 @@ local function parse( tokens )
 	end
 
 	--------------------------------------------------
-	-- Name: var
+	-- Name: vardef
 	--
 	-- Arguments: none
 	--
 	-- Description: Parse a variable definition
 	-- statement.
 	--------------------------------------------------
-	local function var()
+	local function vardef()
 		expect( "id", "var", "(Expected keyword 'var')" )
 		local name = expect( "id", nil, "(Variable Definition in 'var')" ).value
 		expect( "op", "=", "(Expected keyword 'var')" )
-		local value = expr()
 		return {
 			type = "vardef";
 			line = tokens.getLine(),
 			name = name;
-			expr = value;
+			expr = expr();
+		}
+	end
+
+	--------------------------------------------------
+	-- Name: varset
+	--
+	-- Arguments: none
+	--
+	-- Description: Parse a variable definition
+	-- statement.
+	--------------------------------------------------
+	local function varset( name )
+		local name = name or expect( "id", nil, "(Variable Definition in 'var')" ).value
+		expect( "op", "=", "(Expected keyword 'var')" )
+		return {
+			type = "vardef";
+			line = tokens.getLine(),
+			name = name;
+			expr = expr();
 		}
 	end
 
@@ -454,13 +472,11 @@ local function parse( tokens )
 	--------------------------------------------------
 	local function whileb()
 		expect( "id", "while" )
-		local cond = expr()
-		local b = block()
 		return {
 			type = "whileblock",
 			line = tokens.getLine(),
-			cond = cond,
-			body = b,
+			cond = expr(),
+			body = block(),
 		}
 	end
 
@@ -478,13 +494,12 @@ local function parse( tokens )
 		local name = expect( "id" ).value
 		local args = defargs()
 		expect( "op", "=" )
-		local value = expr()
 		return {
 			type = "defunc",
 			line = tokens.getLine(),
 			name = name,
 			args = args,
-			body = value
+			body = expr()
 		}
 	end
 
@@ -497,11 +512,10 @@ local function parse( tokens )
 	--------------------------------------------------
 	local function ret()
 		expect( "id", "return" )
-		local v = expr()
 		return {
 			type = "return",
 			line = tokens.getLine(),
-			value = v;
+			value = expr();
 		}
 	end
 
@@ -515,15 +529,12 @@ local function parse( tokens )
 	--------------------------------------------------
 	local function func()
 		expect( "id", "func" )
-		local name = expect( "id" ).value
-		local args = defargs()
-		local block = block()
 		return {
 			type = "defunc",
 			line = tokens.getLine(),
-			name = name,
-			args = args,
-			body = block
+			name = expect( "id" ).value,
+			args = defargs(),
+			body = block()
 		}
 	end
 
@@ -540,7 +551,7 @@ local function parse( tokens )
 		while tokens.eof() == false do
 			if tokens.peek() then
 				if tokens.peek().value == "var" then
-					prog[ #prog + 1 ] = var()
+					prog[ #prog + 1 ] = vardef()
 				elseif tokens.peek().value == "def" then
 					prog[ #prog + 1 ] = def()
 				elseif tokens.peek().value == "return" then
@@ -588,7 +599,7 @@ local function parse( tokens )
 
 			if tokens.peek() then
 				if tokens.peek().value == "var" then
-					globals[ #globals + 1 ] = var()
+					globals[ #globals + 1 ] = vardef()
 				elseif tokens.peek().value == "def" then
 					functions[ #functions + 1 ] = def()
 				elseif tokens.peek().value == "func" then
@@ -768,12 +779,12 @@ local function compile( tree, reg )
 		compile( tree.value )
 	elseif tree.type == "call" then
 		if tree.name == "draw" then
-			local y = compile( tree.args[ 2 ], 1 )
+			local y = compile( tree.args[ 2 ], 0 )
 			if y then
-				out:push( "LD", "rb", y )
-				out:push( "PUSH", "rb" )
+				out:push( "LD", "ra", y )
+				out:push( "PUSH", "ra" )
 			else
-				out:push( "PUSH", "rb" )
+				out:push( "PUSH", "ra" )
 			end
 
 			local x = compile( tree.args[ 1 ], 0 )

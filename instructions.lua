@@ -203,7 +203,6 @@ instructions[ 0x8000 ] = function( self, opcode )
     elseif op == 0xF then
     	local z = bit.lshift( self.rV[ x ], DIGIT * 2 )
     	self.rV[ R.I ] = bit.bor( z, self.rV[ y ] )
-        print( self.rV[ R.PC ], self.rV[ R.I ] )
     end
 end
 
