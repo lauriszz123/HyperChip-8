@@ -708,6 +708,7 @@ local function compile( tree, reg )
 		out:push( "alias", "rBP", "VB" )
 		out:push( "alias", "rSP", "VD" )
 		out:push( "alias", "rPC", "VE" )
+		out:push( "LD", "rBP", "rSP" )
 		for i=1, #tree.globals do
 			compile( tree.globals[ i ] )
 		end
@@ -765,10 +766,11 @@ local function compile( tree, reg )
 			gVars:define( {name=tree.args[ i ].value}, "local_variable", -i )
 		end
 		compile( tree.body, "function" )
-		for i=1, gVars.localCount do
-			out:push( "POP", "V5" )
-		end
 		if usedReturn == false then
+			if gVars.localCount > 0 then
+				out:push( "LD", "rc", gVars.localCount )
+				out:push( "FLUSH", "rc" )
+			end
 			out:push( "POP", "rBP" )
 			out:push( "RET" )
 		end
@@ -777,6 +779,12 @@ local function compile( tree, reg )
 	elseif tree.type == "return" then
 		usedReturn = true
 		compile( tree.value )
+		if gVars.localCount > 0 then
+			out:push( "LD", "rc", gVars.localCount )
+			out:push( "FLUSH", "rc" )
+		end
+		out:push( "POP", "rBP" )
+		out:push( "RET" )
 	elseif tree.type == "call" then
 		if tree.name == "draw" then
 			local y = compile( tree.args[ 2 ], 0 )
@@ -821,6 +829,10 @@ local function compile( tree, reg )
 				out:push( "LD", "ih", "func_" .. tree.name .. ".high" )
 				out:push( "LDI", "ih", "il" )
 				out:push( "CALL", "I" )
+				if #tree.args > 0 then
+					out:push( "LD", "rc", #tree.args )
+					out:push( "FLUSH", "rc" )
+				end
 			end
 		end
 	elseif tree.type == "ifblock" then
@@ -869,9 +881,20 @@ local function compile( tree, reg )
 			if x then
 				out:push( "LD", "ra", x )
 			end
+		elseif tree.left.type == "call" then
+			compile( tree.left, 0 )
 		end
 		if tree.right.type == "num" then
 			out:push( "LD", "rb", compile( tree.right ) )
+		elseif tree.right.type == "call" then
+			local v = compile( tree.left )
+			if v then
+				out:push( "LD", "ra", v )
+			end
+			out:push( "PUSH", "ra" )
+			compile( tree.right, 0 )
+			out:push( "LD", "rb", "ra" )
+			out:push( "POP", "ra" )
 		else
 			compile( tree.right, 0 )
 			local v = compile( tree.left, 1 )

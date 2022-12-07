@@ -64,6 +64,7 @@ local INSTRUCTIONS = {
 	[ "LDI" ] = 3;
 	[ "PUSH" ] = 2;
 	[ "POP" ] = 2;
+	[ "FLUSH" ] = 2;
 	[ "NGET" ] = 2;
 	[ "GET" ] = 2;
 	[ "NSET" ] = 3;
@@ -492,6 +493,14 @@ local INSTRUCTIONS_COMPILE = {
 		end
 		vx = tonumber( "0x"..vx:sub( 2, 2 ) )
 		local inst = bit.bor( 0xF001, bit.lshift( vx, DIGIT * 2 ) )
+		prog:push( inst )
+	end;
+	[ "FLUSH" ] = function( prog, vx )
+		if aliases[ vx ] then
+			vx = aliases[ vx ]:upper()
+		end
+		vx = tonumber( "0x"..vx:sub( 2, 2 ) )
+		local inst = bit.bor( 0xF004, bit.lshift( vx, DIGIT * 2 ) )
 		prog:push( inst )
 	end;
 	[ "NGET" ] = function( prog, vx )

@@ -208,6 +208,9 @@ local function opToText( n1, n2 )
 	    -- GET Vx
 	    elseif byte == 0x03 then
 	        return "GET V"..string.format( "%01x", x )
+	    -- FLUSH Vx
+	    elseif byte == 0x04 then
+	        return "FLUSH V"..string.format( "%01x", x )
 	    -- LD Vx, DT
 	    elseif byte == 0x07 then
 	        return "LD V"..string.format( "%01x", x )..", DT"
@@ -377,7 +380,7 @@ function love.load()
 
 	screen:init()
 
-	cpu = CPU.create( screen, CPU_SPEED_MIN, 0x10000 )
+	cpu = CPU.create( screen, 2, 0x10000 )
 
 	loadFrames()
 end
@@ -390,25 +393,6 @@ end
 function love.keyreleased( key, scancode )
 	if keys[ key ] then
 		cpu.keypad[ keys[ key ] ] = false
-	end
-	if errMessage ~= nil and key == 'r' then
-		screen:set()
-		love.graphics.clear( 0, 0, 0 )
-		screen:reset()
-		errMessage = c8c.create( "main.c8c", "bootloader.asm" )
-		if errMessage == nil then
-			cpu:reset()
-			asm.compile( "bootloader.asm", "ROM/main.ch8" )
-
-			cpu:loadProgram( "main.ch8" )
-			errMessage = nil
-		else
-			screen:set()
-			love.graphics.setColor( 1,0,0 )
-			love.graphics.printf( errMessage, 1, 1, 159 )
-			love.graphics.printf( "Press R to Restart!", 160 / 2 - (19 * 4 / 2), 128 - 6, 159 )
-			screen:reset()
-		end
 	end
 end
 function love.update( dt )

@@ -298,27 +298,25 @@ instructions[0xF000] = function(self, opcode)
     	local sp = self.rV[ R.SP ]
     	self.memory[ sp ] = self.rV[ x ]
     	self.rV[ R.SP ] = sp - 1
-        print( "PUSH", "V"..x )
     -- POP Vx
     elseif op == 0x01 then
     	local sp = self.rV[ R.SP ] + 1
     	self.rV[ x ] = self.memory[ sp ]
     	self.rV[ R.SP ] = sp
-        print( "POP", "V"..x )
     -- NGET Vx
     elseif op == 0x02 then
         local v = self.memory[ self.rV[ R.BP ] + self.rV[ x ] ]
         self.rV[ x ] = v
-        print( "NGET", "V"..x )
     -- GET Vx
     elseif op == 0x03 then
         local v = self.memory[ self.rV[ R.BP ] - self.rV[ x ] ]
         self.rV[ x ] = v
-        print( "GET", "V"..x )
+    -- FLUSH Vx
+    elseif op == 0x04 then
+        self.rV[ R.SP ] = self.rV[ R.SP ] + self.rV[ x ]
     -- LD Vx, DT
     elseif op == 0x07 then
         self.rV[ x ] = self.DT
-        print( "LD", "V"..x, "DT" )
     -- LD Vx, K
     elseif op == 0x0A then
     	local keyPressed = false
