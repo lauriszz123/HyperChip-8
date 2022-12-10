@@ -40,6 +40,10 @@ local errors = {
 	UNKNOWN_INSTRUCTION = 0x02;
 };
 
+local bor = bit.bor
+local blshift = bit.lshift
+local band = bit.band
+
 return {
 	errors = errors;
 	create = function( screen, speed, ramSize )
@@ -89,6 +93,7 @@ return {
 				end
 
 				print( "Program loaded: "..name, "Size: "..size )
+				return size
 			end;
 
 			running = function( self )
@@ -106,13 +111,13 @@ return {
 
 			fetch = function( self )
 				local pc = self.rV[ R.PC ]
-				local byte = bit.bor( bit.lshift( self.memory[ pc ], 8 ), self.memory[ pc + 1 ] )
+				local byte = bor( blshift( self.memory[ pc ], 8 ), self.memory[ pc + 1 ] )
 				self.rV[ R.PC ] = pc + 2
 				return byte
 			end;
 
 			step = function( self, opcode )
-				local inst = bit.band( opcode, 0xF000 )
+				local inst = band( opcode, 0xF000 )
 				if instructions[ inst ] then
 					return instructions[ inst ]( self, opcode )
 				else
@@ -122,12 +127,14 @@ return {
 
 			cycle = function( self )
 				if self.isRunning == true then
+					self.screen:set()
 					for i=0, self.speed do
 						if self.rV[ R.PC ] >= 0x20000 then
 							self.isRunning = false
 							return errors.CYCLES_OUT_OF_BOUNDS
 						end
 						local err = self:step( self:fetch() )
+						self.screen:handle()
 						if err then
 							return
 						end
@@ -144,6 +151,8 @@ return {
 				    if self.ST > 0 then
 				        self.ST = self.ST - 1
 				    end
+
+				    self.screen.reset()
 			    end
 			end;
 		}

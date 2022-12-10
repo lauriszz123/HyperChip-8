@@ -35,10 +35,17 @@ local R = {
     FLAG = 0xF;
 }
 
+local band = bit.band
+local bor = bit.bor
+local brshift = bit.rshift
+local floor = math.floor
+local bxor = bit.bxor
+
+
 local instructions = {}
 
 instructions[ 0x0000 ] = function( self, opcode )
-    local address = bit.band( opcode, 0x0FFF )
+    local address = band( opcode, 0x0FFF )
 
     -- HLT
     if address == 0x0000 then
@@ -51,9 +58,7 @@ instructions[ 0x0000 ] = function( self, opcode )
         self.hyper = false
     -- CLS
     elseif address == 0x00E0 then
-    	self.screen:set()
         self.screen:clear()
-        self.screen:reset()
     -- RET
     elseif address == 0x00EE then
         self.rV[ R.SP ] = self.rV[ R.SP ] + 1
@@ -73,7 +78,7 @@ end
 
 -- JP addr
 instructions[ 0x1000 ] = function( self, opcode )
-    self.rV[ R.PC ] = bit.band( opcode, 0x0FFF )
+    self.rV[ R.PC ] = band( opcode, 0x0FFF )
 end
 
 -- CALL addr
@@ -82,13 +87,13 @@ instructions[ 0x2000 ] = function( self, opcode )
     self.memory[ sp ] = self.rV[ R.PC ]
     self.rV[ R.SP ] = sp - 1
     
-    self.rV[ R.PC ] = bit.band( opcode, 0x0FFF )
+    self.rV[ R.PC ] = band( opcode, 0x0FFF )
 end
 
 -- SE Vx, byte
 instructions[ 0x3000 ] = function( self, opcode )
-    local x = bit.rshift( bit.band( opcode, 0x0F00 ), DIGIT * 2 )
-    local value = bit.band( opcode, 0x00FF )
+    local x = brshift( band( opcode, 0x0F00 ), DIGIT * 2 )
+    local value = band( opcode, 0x00FF )
     
     if self.rV[ x ] == value then
         self.rV[ R.PC ] = self.rV[ R.PC ] + NEXT_INSTR
@@ -97,8 +102,8 @@ end
 
 -- SNE Vx, byte
 instructions[ 0x4000 ] = function( self, opcode )
-    local x = bit.rshift( bit.band( opcode, 0x0F00 ), DIGIT * 2 )
-    local value = bit.band( opcode, 0x00FF )
+    local x = brshift( band( opcode, 0x0F00 ), DIGIT * 2 )
+    local value = band( opcode, 0x00FF )
     
     if self.rV[ x ] ~= value then
         self.rV[ R.PC ] = self.rV[ R.PC ] + NEXT_INSTR
@@ -107,8 +112,8 @@ end
 
 -- SE Vx, Vy
 instructions[ 0x5000 ] = function( self, opcode )
-    local x = bit.rshift( bit.band( opcode, 0x0F00 ), DIGIT * 2)
-    local y = bit.rshift( bit.band( opcode, 0x00F0 ), DIGIT )
+    local x = brshift( band( opcode, 0x0F00 ), DIGIT * 2)
+    local y = brshift( band( opcode, 0x00F0 ), DIGIT )
     
     if self.rV[ x ] == self.rV[ y ] then
         self.rV[ R.PC ] = self.rV[ R.PC ] + NEXT_INSTR
@@ -117,16 +122,16 @@ end
 
 -- LD Vx, byte
 instructions[ 0x6000 ] = function( self, opcode )
-    local x = bit.rshift( bit.band( opcode, 0x0F00 ), DIGIT * 2 )
-    local value = bit.band( opcode, 0x00FF )
+    local x = brshift( band( opcode, 0x0F00 ), DIGIT * 2 )
+    local value = band( opcode, 0x00FF )
     
     self.rV[ x ] = value
 end
 
 -- ADD Vx, byte
 instructions[ 0x7000 ] = function( self, opcode )
-    local x = bit.rshift( bit.band( opcode, 0x0F00 ), DIGIT * 2 )
-    local value = bit.band( opcode, 0x00FF )
+    local x = brshift( band( opcode, 0x0F00 ), DIGIT * 2 )
+    local value = band( opcode, 0x00FF )
 
     local v = (self.rV[ x ] + value)
     if v > 0xFF then
@@ -137,22 +142,22 @@ instructions[ 0x7000 ] = function( self, opcode )
 end
 
 instructions[ 0x8000 ] = function( self, opcode )
-    local x = bit.rshift( bit.band( opcode, 0x0F00 ), DIGIT * 2 )
-    local y = bit.rshift( bit.band( opcode, 0x00F0 ), DIGIT )
-    local op = bit.band( opcode, 0x000F )
+    local x = brshift( band( opcode, 0x0F00 ), DIGIT * 2 )
+    local y = brshift( band( opcode, 0x00F0 ), DIGIT )
+    local op = band( opcode, 0x000F )
     
     -- LD Vx, Vy
     if op == 0x0 then
         self.rV[ x ] = self.rV[ y ]
     -- OR Vx, Vy
     elseif op == 0x1 then
-        self.rV[ x ] = bit.bor( self.rV[ x ], self.rV[ y ] )
+        self.rV[ x ] = bor( self.rV[ x ], self.rV[ y ] )
     -- AND Vx, Vy
     elseif op == 0x2 then
-        self.rV[ x ] = bit.band( self.rV[ x ], self.rV[ y ] )
+        self.rV[ x ] = band( self.rV[ x ], self.rV[ y ] )
     -- XOR Vx, Vy
     elseif op == 0x3 then
-        self.rV[ x ] = bit.bxor( self.rV[ x ], self.rV[ y ] )
+        self.rV[ x ] = bxor( self.rV[ x ], self.rV[ y ] )
     -- ADD Vx, Vy
     elseif op == 0x4 then
         local sum = self.rV[ x ] + self.rV[ y ]
@@ -165,8 +170,8 @@ instructions[ 0x8000 ] = function( self, opcode )
         self.rV[ x ] = ( self.rV[ x ] - self.rV[ y ] ) % 0x100
     -- SHR Vx
     elseif op == 0x6 then
-        self.rV[ R.FLAG ] = bit.band( self.rV[ x ], 0x1 )
-        self.rV[ x ] = math.floor( self.rV[ x ] / 2 ) % 0x100
+        self.rV[ R.FLAG ] = band( self.rV[ x ], 0x1 )
+        self.rV[ x ] = floor( self.rV[ x ] / 2 ) % 0x100
     -- SUBN Vx, Vy
     elseif op == 0x7 then
         self.rV[ R.FLAG ] = ( self.rV[ y ] > self.rV[ x ] ) and 1 or 0
@@ -179,7 +184,7 @@ instructions[ 0x8000 ] = function( self, opcode )
         self.rV[ x ] = sum % 0x100
     -- DIV Vx, Vy
     elseif op == 0x9 then
-        self.rV[ x ] = math.floor( self.rV[ x ] / self.rV[ y ] )
+        self.rV[ x ] = floor( self.rV[ x ] / self.rV[ y ] )
     -- POW Vx, Vy
     elseif op == 0xA then
         local sum = self.rV[ x ] ^ self.rV[ y ]
@@ -197,19 +202,19 @@ instructions[ 0x8000 ] = function( self, opcode )
         self.memory[ self.rV[ R.BP ] - self.rV[ x ] ] = self.rV[ y ]
     -- SHL Vx
     elseif op == 0xE then
-        self.rV[ R.FLAG ] = ( bit.band( self.rV[ x ], 0x80 ) == 0x80 ) and 1 or 0
-        self.rV[ x ] = math.floor( self.rV[ x ] * 2 ) % 0x100
+        self.rV[ R.FLAG ] = ( band( self.rV[ x ], 0x80 ) == 0x80 ) and 1 or 0
+        self.rV[ x ] = floor( self.rV[ x ] * 2 ) % 0x100
     -- LDI Vx, Vy
     elseif op == 0xF then
     	local z = bit.lshift( self.rV[ x ], DIGIT * 2 )
-    	self.rV[ R.I ] = bit.bor( z, self.rV[ y ] )
+    	self.rV[ R.I ] = bor( z, self.rV[ y ] )
     end
 end
 
 -- SNE Vx, Vy
 instructions[ 0x9000 ] = function( self, opcode )
-    local x = bit.rshift( bit.band( opcode, 0x0F00 ), DIGIT * 2 )
-    local y = bit.rshift( bit.band( opcode, 0x00F0 ), DIGIT )
+    local x = brshift( band( opcode, 0x0F00 ), DIGIT * 2 )
+    local y = brshift( band( opcode, 0x00F0 ), DIGIT )
     
     if self.rV[ x ] ~= self.rV[ y ] then
         self.rV[ R.PC ] = self.rV[ R.PC ] + NEXT_INSTR
@@ -218,63 +223,64 @@ end
 
 -- LD I, addr
 instructions[ 0xA000 ] = function( self, opcode )
-    self.rV[ R.I ] = bit.band( opcode, 0x0FFF )
+    self.rV[ R.I ] = band( opcode, 0x0FFF )
 end
 
 -- JP V0, addr
 instructions[ 0xB000 ] = function( self, opcode )
-    local address = bit.band( opcode, 0x0FFF )
+    local address = band( opcode, 0x0FFF )
 
     self.rV[ R.PC ] = self.rV[ R.PC ] + (address + self.rV[ 0 ])
 end
 
 -- RND Vx, byte
 instructions[ 0xC000 ] = function( self, opcode )
-    local index = bit.rshift( bit.band( opcode, 0x0F00 ), DIGIT * 2 )
-    local constant = bit.band( opcode, 0x00FF )
+    local index = brshift( band( opcode, 0x0F00 ), DIGIT * 2 )
+    local constant = band( opcode, 0x00FF )
     
-    self.rV[ index ] = bit.band( math.random( 0, 255 ), constant )
+    self.rV[ index ] = band( math.random( 0, 255 ), constant )
 end
 
 -- DRW Vx, Vy, nibble( Vz[command] )
 instructions[ 0xD000 ] = function(self, opcode)
-    local originX = bit.rshift(bit.band(opcode, 0x0F00), DIGIT * 2)
-    local originY = bit.rshift(bit.band(opcode, 0x00F0), DIGIT)
-    local height = bit.band( opcode, 0x000F )
-    local data = 0x0000
-    local value = 0
-    local position = 0
-    
-    self.rV[ R.FLAG ] = 0
+    local originX = brshift(band(opcode, 0x0F00), DIGIT * 2)
+    local originY = brshift(band(opcode, 0x00F0), DIGIT)
+    local height = band( opcode, 0x000F )
 
-    self.screen:set()
+    if self.hyper == true then
+        self.deviceManager:addEvent( self.rV[ originX ], self.rV[ originY ], self.rV[ height ] )
+    else
+        local data = 0x0000
+        local value = 0
+        local position = 0
+        
+        self.rV[ R.FLAG ] = 0
 
-    for y = 0, height - 1 do
-        data = self.memory[ self.rV[ R.I ] + y ]
+        for y = 0, height - 1 do
+            data = self.memory[ self.rV[ R.I ] + y ]
 
-        for x = 0, SPRITE_W - 1 do
-            if bit.band( data, bit.rshift( MSB, x ) ) > 0 then
-                
-				local xx, yy = ((self.rV[ originX ] + x) % DISPLAY_W), ((self.rV[ originY ] + y) % DISPLAY_H)
+            for x = 0, SPRITE_W - 1 do
+                if band( data, brshift( MSB, x ) ) > 0 then
+                    
+    				local xx, yy = ((self.rV[ originX ] + x) % DISPLAY_W), ((self.rV[ originY ] + y) % DISPLAY_H)
 
-				local value = self.screen.getPixel( xx, yy + 1 )
+    				local value = self.screen.getPixel( xx, yy + 1 )
 
-                if value == 1 then
-                    self.rV[ R.FLAG ] = 1
+                    if value == 1 then
+                        self.rV[ R.FLAG ] = 1
+                    end
+                    
+                    self.screen.putPixel( xx, yy + 1, bxor( value, 1 ) == 1 )
                 end
-                
-                self.screen.putPixel( xx, yy + 1, bit.bxor( value, 1 ) == 1 )
             end
         end
     end
-
-    self.screen:reset()
 end
 
 
 instructions[ 0xE000 ] = function( self, opcode )
-    local x = bit.rshift( bit.band( opcode, 0x0F00 ), DIGIT * 2 )
-    local op = bit.band( opcode, 0x00FF )
+    local x = brshift( band( opcode, 0x0F00 ), DIGIT * 2 )
+    local op = band( opcode, 0x00FF )
     
     -- SKP Vx
     if op == 0x9E then
@@ -290,8 +296,8 @@ instructions[ 0xE000 ] = function( self, opcode )
 end
 
 instructions[0xF000] = function(self, opcode)
-    local x = bit.rshift( bit.band( opcode, 0x0F00 ), DIGIT * 2 )
-    local op = bit.band( opcode, 0x00FF )
+    local x = brshift( band( opcode, 0x0F00 ), DIGIT * 2 )
+    local op = band( opcode, 0x00FF )
 
     -- PUSH Vx
     if op == 0x00 then
@@ -309,8 +315,7 @@ instructions[0xF000] = function(self, opcode)
         self.rV[ x ] = v
     -- GET Vx
     elseif op == 0x03 then
-        local v = self.memory[ self.rV[ R.BP ] - self.rV[ x ] ]
-        self.rV[ x ] = v
+        self.rV[ x ] = self.memory[ self.rV[ R.BP ] - self.rV[ x ] ]
     -- FLUSH Vx
     elseif op == 0x04 then
         self.rV[ R.SP ] = self.rV[ R.SP ] + self.rV[ x ]
@@ -347,10 +352,10 @@ instructions[0xF000] = function(self, opcode)
         local value = self.rV[ x ]
         
         local ones = value % DECIMAL
-        value = math.floor( value / DECIMAL )
+        value = floor( value / DECIMAL )
         
         local tens = value % DECIMAL
-        value = math.floor( value / DECIMAL )
+        value = floor( value / DECIMAL )
         
         local hundreds = value % DECIMAL
         

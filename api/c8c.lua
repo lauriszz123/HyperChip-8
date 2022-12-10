@@ -3,7 +3,8 @@
 C like language
 
 var varname = byte
-var array[size] = {
+
+var array[size] = {		-- TO BE IMPLEMENTED
 	byte, byte, byte
 }
 
@@ -328,18 +329,32 @@ local function parse( tokens )
 	-- Arguments: none
 	--
 	-- Description: Parse a variable definition
-	-- statement.
+	-- statement. Can be an array.
 	--------------------------------------------------
 	local function vardef()
 		expect( "id", "var", "(Expected keyword 'var')" )
 		local name = expect( "id", nil, "(Variable Definition in 'var')" ).value
-		expect( "op", "=", "(Expected keyword 'var')" )
-		return {
-			type = "vardef";
-			line = tokens.getLine(),
-			name = name;
-			expr = expr();
-		}
+		if tokens.peek().value == "[" then
+			expect( "prec", '[' )
+			local size = expect( "num" ).value
+			expect( "prec", ']' )
+			expect( "op", "=", "(Expected keyword 'var')" )
+			return {
+				type = "arraydef";
+				line = tokens.getLine(),
+				name = name;
+				size = size;
+				expr = expr();
+			}
+		else
+			expect( "op", "=", "(Expected keyword 'var')" )
+			return {
+				type = "vardef";
+				line = tokens.getLine(),
+				name = name;
+				expr = expr();
+			}
+		end
 	end
 
 	--------------------------------------------------
@@ -354,7 +369,7 @@ local function parse( tokens )
 		local name = name or expect( "id", nil, "(Variable Definition in 'var')" ).value
 		expect( "op", "=", "(Expected keyword 'var')" )
 		return {
-			type = "vardef";
+			type = "varset";
 			line = tokens.getLine(),
 			name = name;
 			expr = expr();
@@ -476,7 +491,7 @@ local function parse( tokens )
 			type = "whileblock",
 			line = tokens.getLine(),
 			cond = expr(),
-			body = block(),
+			block = block(),
 		}
 	end
 
@@ -552,8 +567,6 @@ local function parse( tokens )
 			if tokens.peek() then
 				if tokens.peek().value == "var" then
 					prog[ #prog + 1 ] = vardef()
-				elseif tokens.peek().value == "def" then
-					prog[ #prog + 1 ] = def()
 				elseif tokens.peek().value == "return" then
 					prog[ #prog + 1 ] = ret()
 				elseif tokens.peek().value == "if" then
@@ -562,6 +575,10 @@ local function parse( tokens )
 					prog[ #prog + 1 ] = whileb()
 				elseif tokens.peek().value == "__asm__" then
 					prog[ #prog + 1 ] = toasm()
+				elseif tokens.peek().value == "break" then
+					prog[ #prog + 1 ] = {
+						type = "break",
+					}
 				elseif tokens.peek().value == "}" then
 					break
 				else
@@ -740,6 +757,23 @@ local function compile( tree, reg )
 		for i=1, #tree.block do
 			compile( tree.block[ i ], reg )
 		end
+	elseif tree.type == "whileblock" then
+		local currifcount = ifcount
+		ifcount = ifcount + 1
+		out:push( "LD", "il", "whileend_"..currifcount..".low" )
+		out:push( "LD", "ih", "whileend_"..currifcount..".high" )
+		out:push( "LDI", "ih", "il" )
+		out:push( "LD", "rPC", "rI" )
+
+		out:push( "while_"..currifcount..":" )
+		compile( tree.block )
+
+		out:push( "whileend_"..currifcount..":" )
+		out:push( "LD", "il", "while_"..currifcount..".low" )
+		out:push( "LD", "ih", "while_"..currifcount..".high" )
+		out:push( "LDI", "ih", "il" )
+		compile( tree.cond )
+		out:push( "LD", "rPC", "rI" )
 	elseif tree.type == "vardef" then
 		local v = compile( tree.expr )
 		if v then
@@ -751,6 +785,25 @@ local function compile( tree, reg )
 			gVars.localCount = gVars.localCount + 1
 		else
 			gVars:define( tree, "global_variable" )
+			out:push( "LD", "il", "var_"..tree.name..".low" )
+			out:push( "LD", "ih", "var_"..tree.name..".high" )
+			out:push( "LDI", "ih", "il" )
+			out:push( "LD", "[I]", "ra" )
+		end
+	elseif tree.type == "varset" then
+		local v = compile( tree.expr )
+		if v then
+			out:push( "LD", "ra", v )
+		end
+		if gVars:get( tree ).type == "local_variable" then
+			if gVars:get( tree ).value < 0 then
+				out:push( "LD", "rb", math.abs( var.value ) + 2 )
+				out:push( "NSET", "rb", "ra" )
+			else
+				out:push( "LD", "rb", gVars:get( tree ).value )
+				out:push( "SET", "rb", "ra" )
+			end
+		else
 			out:push( "LD", "il", "var_"..tree.name..".low" )
 			out:push( "LD", "ih", "var_"..tree.name..".high" )
 			out:push( "LDI", "ih", "il" )
@@ -786,7 +839,9 @@ local function compile( tree, reg )
 		out:push( "POP", "rBP" )
 		out:push( "RET" )
 	elseif tree.type == "call" then
-		if tree.name == "draw" then
+		if tree.name == "clearScreen" then
+			out:push( "CLS" )
+		elseif tree.name == "draw" then
 			local y = compile( tree.args[ 2 ], 0 )
 			if y then
 				out:push( "LD", "ra", y )
@@ -883,6 +938,8 @@ local function compile( tree, reg )
 			end
 		elseif tree.left.type == "call" then
 			compile( tree.left, 0 )
+		elseif tree.left.type == "fetch" then
+			compile( tree.left, 0 )
 		end
 		if tree.right.type == "num" then
 			out:push( "LD", "rb", compile( tree.right ) )
@@ -941,7 +998,10 @@ local function compile( tree, reg )
 			if reg == 0 then
 				out:push( "LD", "ra", "[I]" )
 			else
-				out:push( "LD", "rb", "[I]" )
+				out:push( "PUSH", "ra" )
+				out:push( "LD", "ra", "[I]" )
+				out:push( "LD", "rb", "ra" )
+				out:push( "POP", "ra" )
 			end
 		else
 			local var = gVars:get( tree )
@@ -970,17 +1030,17 @@ end
 
 return {
 	create = function( file, out )
-		--local co, err = coroutine.create( function()
+		local co, err = coroutine.create( function()
 			local contents, size = love.filesystem.read( file )
 			local parsed = parse( tokenize( wrapper( contents ) ) )
 			print( parsed )
 			local compiled = compile( parsed )
 			print( compiled )
 			love.filesystem.write( out, table.concat( compiled, "\n" ) )
-		--end )
-		--while coroutine.status( co ) == "suspended" do
-		--	local ok, err = coroutine.resume( co )
-		--	if not ok then return err end
-		--end
+		end )
+		while coroutine.status( co ) == "suspended" do
+			local ok, err = coroutine.resume( co )
+			if not ok then return err end
+		end
 	end
 }

@@ -2,8 +2,17 @@ local lgp = love.graphics.print
 local localScreen = {}
 
 local switch = {
-	[ 0 ] = function( self )
+	[ 0 ] = function( self, value )
 		self:clear()
+	end;
+	[ 1 ] = function( self, value )
+		self.termX = value
+	end;
+	[ 2 ] = function( self, value )
+		self.termY = value
+	end;
+	[ 3 ] = function( self, value )
+		lgp( string.char( value ), self.termX * 4, self.termY * 6 )
 	end;
 }
 
@@ -15,6 +24,8 @@ return {
 			height = h;
 			scale = s;
 			events = {};
+			termX = 0;
+			termY = 0;
 
 			init = function( self )
 				self.canvas = love.graphics.newCanvas( self.width, self.height )
@@ -39,9 +50,7 @@ return {
 					error( "No canvas created.", 0 )
 				end
 			end;
-			reset = function()
-				love.graphics.setCanvas()
-			end;
+			reset = love.graphics.setCanvas;
 
 			clear = function ( self )
 				love.graphics.clear( 0, 0, 0 )
@@ -80,12 +89,10 @@ return {
 			end;
 
 			handle = function( self )
-				self:set()
 				while #self.events > 0 do
 					local event = table.remove( self.events, 1 )
 					switch[ event.type ]( self, unpack( event.args ) )
 				end
-				love.graphics.setCanvas()
 			end;
 
 			draw = function( self, x, y )

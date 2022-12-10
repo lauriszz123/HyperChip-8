@@ -4,7 +4,7 @@ DEBUG = false
 
 local screen = (require "api.screen").create( 160, 128, 5 )
 local CPU = require "cpu"
-local CPU_SPEED_MAX = math.floor( 7833600 / 60 )
+local CPU_SPEED_MAX = math.floor( 6670000 / 60 )
 --local CPU_SPEED_MAX = 0xFF
 local CPU_SPEED_MIN = math.floor( 1000000 / 60 )
 
@@ -16,6 +16,8 @@ local asm = require "api.asm"
 local c8c = require "api.c8c"
 
 local DIGIT = 4
+
+local strf = string.format
 
 local keys = {
 	[ "1" ] = 0x1;
@@ -49,9 +51,9 @@ local function tablePrint( t, space )
 			tablePrint( v, space .. "\t" )
 		else
 			if type( v ) == "number" then
-				oldPrint( space, k, "=", string.format( "%04x", v ) )
+				oldPrint( space, k, "=", strf( "%04x", v ) )
 			elseif tonumber( v ) then
-				oldPrint( space, k, "=", string.format( "%04x", tonumber( v ) ) )
+				oldPrint( space, k, "=", strf( "%04x", tonumber( v ) ) )
 			else
 				oldPrint( space, k, "=", v )
 			end
@@ -69,9 +71,9 @@ function print( ... )
 			local c = { ... }
 			for i=1, #c do
 				if tonumber( c[ i ] ) then
-					c[ i ] = string.format( "%04x", tonumber( c[ i ] ) )
+					c[ i ] = strf( "%04x", tonumber( c[ i ] ) )
 				elseif type( c[ i ] ) == "number" then
-					c[ i ] = string.format( "%04x", c[ i ] )
+					c[ i ] = strf( "%04x", c[ i ] )
 				end
 			end
 			oldPrint( unpack( c ) )
@@ -114,130 +116,130 @@ local function opToText( n1, n2 )
 	        return "CALL I"
 	    end
 	elseif inst == 0x1000 then
-		return "JP "..string.format( "%03x", address )
+		return "JP "..strf( "%03x", address )
 	elseif inst == 0x2000 then
-		return "CALL "..string.format( "%03x", address )
+		return "CALL "..strf( "%03x", address )
 	elseif inst == 0x3000 then
-		return "SE V" .. string.format( "%01x", x ) .. ", "..string.format( "%02x", byte )
+		return "SE V" .. strf( "%01x", x ) .. ", "..strf( "%02x", byte )
 	elseif inst == 0x4000 then
-		return "SNE V" .. string.format( "%01x", x ) .. ", "..string.format( "%02x", byte )
+		return "SNE V" .. strf( "%01x", x ) .. ", "..strf( "%02x", byte )
 	elseif inst == 0x5000 then
-		return "SE V" .. string.format( "%01x", x ) .. ", V"..string.format( "%02x", y )
+		return "SE V" .. strf( "%01x", x ) .. ", V"..strf( "%02x", y )
 	elseif inst == 0x6000 then
-		return "LD V" .. string.format( "%01x", x ) .. ", "..string.format( "%02x", byte )
+		return "LD V" .. strf( "%01x", x ) .. ", "..strf( "%02x", byte )
 	elseif inst == 0x7000 then
-		return "ADD V" .. string.format( "%01x", x ) .. ", "..string.format( "%02x", byte )
+		return "ADD V" .. strf( "%01x", x ) .. ", "..strf( "%02x", byte )
 	elseif inst == 0x8000 then
 		-- LD Vx, Vy
 	    if op == 0x0 then
-	        return "LD V"..string.format( "%01x", x )..", V"..string.format( "%01x", y )
+	        return "LD V"..strf( "%01x", x )..", V"..strf( "%01x", y )
 	    -- OR Vx, Vy
 	    elseif op == 0x1 then
-	        return "OR V"..string.format( "%01x", x )..", V"..string.format( "%01x", y )
+	        return "OR V"..strf( "%01x", x )..", V"..strf( "%01x", y )
 	    -- AND Vx, Vy
 	    elseif op == 0x2 then
-	        return "AND V"..string.format( "%01x", x )..", V"..string.format( "%01x", y )
+	        return "AND V"..strf( "%01x", x )..", V"..strf( "%01x", y )
 	    -- XOR Vx, Vy
 	    elseif op == 0x3 then
-	        return "XOR V"..string.format( "%01x", x )..", V"..string.format( "%01x", y )
+	        return "XOR V"..strf( "%01x", x )..", V"..strf( "%01x", y )
 	    -- ADD Vx, Vy
 	    elseif op == 0x4 then
-	        return "ADD V"..string.format( "%01x", x )..", V"..string.format( "%01x", y )
+	        return "ADD V"..strf( "%01x", x )..", V"..strf( "%01x", y )
 	    -- SUB Vx, Vy
 	    elseif op == 0x5 then
-	        return "SUB V"..string.format( "%01x", x )..", V"..string.format( "%01x", y )
+	        return "SUB V"..strf( "%01x", x )..", V"..strf( "%01x", y )
 	    -- SHR Vx
 	    elseif op == 0x6 then
-	        return "SHR V"..string.format( "%01x", x )
+	        return "SHR V"..strf( "%01x", x )
 	    -- SUBN Vx, Vy
 	    elseif op == 0x7 then
-	        return "SUBN V"..string.format( "%01x", x )..", V"..string.format( "%01x", y )
+	        return "SUBN V"..strf( "%01x", x )..", V"..strf( "%01x", y )
 	    -- MUL Vx, Vy
 	    elseif op == 0x8 then
-	        return "MUL V"..string.format( "%01x", x )..", V"..string.format( "%01x", y )
+	        return "MUL V"..strf( "%01x", x )..", V"..strf( "%01x", y )
 	    -- DIV Vx, Vy
 	    elseif op == 0x9 then
-	        return "DIV V"..string.format( "%01x", x )..", V"..string.format( "%01x", y )
+	        return "DIV V"..strf( "%01x", x )..", V"..strf( "%01x", y )
 	    -- POW Vx, Vy
 	    elseif op == 0xA then
-	        return "POW V"..string.format( "%01x", x )..", V"..string.format( "%01x", y )
+	        return "POW V"..strf( "%01x", x )..", V"..strf( "%01x", y )
 	    -- MOD Vx, Vy
 	    elseif op == 0xB then
-	        return "MOD V"..string.format( "%01x", x )..", V"..string.format( "%01x", y )
+	        return "MOD V"..strf( "%01x", x )..", V"..strf( "%01x", y )
 	    -- NSET Vx, Vy
 	    elseif op == 0xC then
-	        return "NSET V"..string.format( "%01x", x )..", V"..string.format( "%01x", y )
+	        return "NSET V"..strf( "%01x", x )..", V"..strf( "%01x", y )
 	    -- SET Vx, Vy
 	    elseif op == 0xD then
-	        return "SET V"..string.format( "%01x", x )..", V"..string.format( "%01x", y )
+	        return "SET V"..strf( "%01x", x )..", V"..strf( "%01x", y )
 	    -- SHL Vx
 	    elseif op == 0xE then
-	        return "SHL V"..string.format( "%01x", x )
+	        return "SHL V"..strf( "%01x", x )
 	    -- LDI Vx, Vy
 	    elseif op == 0xF then
-	    	return "LDI V"..string.format( "%01x", x )..", V"..string.format( "%01x", y )
+	    	return "LDI V"..strf( "%01x", x )..", V"..strf( "%01x", y )
 	    end
 	elseif inst == 0x9000 then
-		return "SNE V"..string.format( "%01x", x )..", V"..string.format( "%01x", y )
+		return "SNE V"..strf( "%01x", x )..", V"..strf( "%01x", y )
 	elseif inst == 0xA000 then
-		return "LD I, "..string.format( "%03x", addr )
+		return "LD I, "..strf( "%03x", addr )
 	elseif inst == 0xB000 then
-		return "JP V0, "..string.format( "%03x", addr )
+		return "JP V0, "..strf( "%03x", addr )
 	elseif inst == 0xC000 then
-		return "RND V"..string.format( "%01x", x )..", "..string.format( "%02x", byte )
+		return "RND V"..strf( "%01x", x )..", "..strf( "%02x", byte )
 	elseif inst == 0xD000 then
 		-- DRW Vx, Vy, nibble( Vz[command] )
-		return "DRW V"..string.format( "%01x", x )..", V"..string.format( "%01x", y )..", "..string.format( "%01x", nibble )
+		return "DRW V"..strf( "%01x", x )..", V"..strf( "%01x", y )..", "..strf( "%01x", nibble )
 	elseif inst == 0xE000 then
 		-- SKP Vx
 	    if byte == 0x9E then
-	    	return "SKP V"..string.format( "%01x", x )
+	    	return "SKP V"..strf( "%01x", x )
 	    -- SKPN Vx
 	    elseif byte == 0xA1 then
-	    	return "SKPN V"..string.format( "%01x", x )
+	    	return "SKPN V"..strf( "%01x", x )
 	    end
 	elseif inst == 0xF000 then
 		if byte == 0x00 then
-	    	return "PUSH V"..string.format( "%01x", x )
+	    	return "PUSH V"..strf( "%01x", x )
 	    -- POP Vx
 	    elseif byte == 0x01 then
-	    	return "POP V"..string.format( "%01x", x )
+	    	return "POP V"..strf( "%01x", x )
 	    -- NGET Vx
 	    elseif byte == 0x02 then
-	        return "NGET V"..string.format( "%01x", x )
+	        return "NGET V"..strf( "%01x", x )
 	    -- GET Vx
 	    elseif byte == 0x03 then
-	        return "GET V"..string.format( "%01x", x )
+	        return "GET V"..strf( "%01x", x )
 	    -- FLUSH Vx
 	    elseif byte == 0x04 then
-	        return "FLUSH V"..string.format( "%01x", x )
+	        return "FLUSH V"..strf( "%01x", x )
 	    -- LD Vx, DT
 	    elseif byte == 0x07 then
-	        return "LD V"..string.format( "%01x", x )..", DT"
+	        return "LD V"..strf( "%01x", x )..", DT"
 	    -- LD Vx, K
 	    elseif byte == 0x0A then
-	    	return "LD V"..string.format( "%01x", x )..", K"
+	    	return "LD V"..strf( "%01x", x )..", K"
 	    -- LD DT, Vx
 	    elseif byte == 0x15 then
-	        return "LD DT, V"..string.format( "%01x", x )
+	        return "LD DT, V"..strf( "%01x", x )
 	    -- LD ST, Vx
 	    elseif byte == 0x18 then
-	        return "LD ST, V"..string.format( "%01x", x )
+	        return "LD ST, V"..strf( "%01x", x )
 	    -- ADD I, Vx
 	    elseif byte == 0x1E then
-	        return "ADD I, V"..string.format( "%01x", x )
+	        return "ADD I, V"..strf( "%01x", x )
 	    -- LD F, Vx
 	    elseif byte == 0x29 then
-	        return "LD F, V"..string.format( "%01x", x )
+	        return "LD F, V"..strf( "%01x", x )
 	    -- LD B, Vx
 	    elseif byte == 0x33 then
-	        return "LD B, V"..string.format( "%01x", x )
+	        return "LD B, V"..strf( "%01x", x )
 	    -- LD [I], Vx
 	    elseif byte == 0x55 then
-	        return "LD [I], V"..string.format( "%01x", x )
+	        return "LD [I], V"..strf( "%01x", x )
 	    -- LD Vx, [I]
 	    elseif byte == 0x65 then
-	        return "LD V"..string.format( "%01x", x )..", [I]"
+	        return "LD V"..strf( "%01x", x )..", [I]"
 	    end
 	end
 
@@ -275,7 +277,7 @@ local function loadFrames()
 	    	if num then
 		        object:CenterX()
 		        object:SetY((20 * i) + 26)
-		        object:SetText("V["..string.format( "%x", object.register ).."] = "..string.format( "%04x", num ) )
+		        object:SetText("V["..strf( "%x", object.register ).."] = "..strf( "%04x", num ) )
 		    end
 	    end
 	end
@@ -318,12 +320,12 @@ local function loadFrames()
 		if errMessage == nil then
 			asm.compile( "bootloader.asm", "ROM/main.ch8" )
 
-			cpu:loadProgram( "main.ch8" )
+			oldPrint( "Size:", cpu:loadProgram( "main.ch8" ).." bytes" )
 		else
 			screen:set()
 			love.graphics.setColor( 1,0,0 )
 			love.graphics.printf( errMessage, 1, 1, 159 )
-			love.graphics.printf( "Press R to Restart!", 160 / 2 - (19 * 4 / 2), 128 - 6, 159 )
+			love.graphics.printf( "Click 'Reset' to restart.", 160 / 2 - (25 * 4 / 2), 128 - 6, 159 )
 			screen:reset()
 		end
     end
@@ -341,7 +343,9 @@ local function loadFrames()
     stepButton:SetX( 84 )
     stepButton:SetY( 28 )
     stepButton.OnClick = function( object, x, y )
+    	screen:set()
     	cpu:step( cpu:fetch() )
+    	screen.reset()
     end
 
     local chipRam = loveframes.Create( "frame" )
@@ -365,7 +369,7 @@ local function loadFrames()
 			        if i==0 then
 			        	object:SetDefaultColor( 0, 0.4, 0, 1 )
 			        end
-			        object:SetText("["..string.format( "%04x", loc ).."] - "..string.format( "%02x", num ).." "..string.format( "%02x", num2 ).."      "..instruction )
+			        object:SetText("["..strf( "%04x", loc ).."] - "..strf( "%02x", num ).." "..strf( "%02x", num2 ).."      "..instruction )
 			    end
 			end
 	    end
@@ -395,7 +399,11 @@ function love.keyreleased( key, scancode )
 		cpu.keypad[ keys[ key ] ] = false
 	end
 end
+
+local gdt
+
 function love.update( dt )
+	gdt = dt
 	if runButton then
 		if cpu.isRunning == true then
 			runButton:SetText( "Stop" )
@@ -403,14 +411,17 @@ function love.update( dt )
 			runButton:SetText( "Run" )
 		end
 	end
+	if dt <= 0.025125 then
+		loveframes.update( dt )
+	end
 	cpu:cycle()
-	screen:handle()
-	loveframes.update( dt )
 end
 
 function love.draw()
 	love.graphics.setColor( 1,1,1 )
 	loveframes.draw()
+	love.graphics.setColor( 1,1,1 )
+	love.graphics.print( "FPS: "..love.timer.getFPS().. ", DT="..gdt )
 end
 
 function love.mousepressed(x, y, button)

@@ -530,8 +530,8 @@ local INSTRUCTIONS_COMPILE = {
 			if vy:sub( 1, 1 ):upper() == "V" then
 				vx = tonumber( "0x"..vx:sub( 2, 2 ) )
 				vy = tonumber( "0x"..vy:sub( 2, 2 ) )
-				local inst = bit.bor( 0x8001, bit.lshift( vx, DIGIT * 2 ) )
-				inst = bit.bor( 0x800C, bit.lshift( vy, DIGIT ) )
+				local inst = bit.bor( 0x800C, bit.lshift( vx, DIGIT * 2 ) )
+				inst = bit.bor( inst, bit.lshift( vy, DIGIT ) )
 				prog:push( inst )
 			end
 		end
@@ -547,8 +547,8 @@ local INSTRUCTIONS_COMPILE = {
 			if vy:sub( 1, 1 ):upper() == "V" then
 				vx = tonumber( "0x"..vx:sub( 2, 2 ) )
 				vy = tonumber( "0x"..vy:sub( 2, 2 ) )
-				local inst = bit.bor( 0x8001, bit.lshift( vx, DIGIT * 2 ) )
-				inst = bit.bor( 0x800D, bit.lshift( vy, DIGIT ) )
+				local inst = bit.bor( 0x800D, bit.lshift( vx, DIGIT * 2 ) )
+				inst = bit.bor( inst, bit.lshift( vy, DIGIT ) )
 				prog:push( inst )
 			end
 		end
