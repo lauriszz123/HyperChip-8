@@ -1,7 +1,6 @@
 -- Output object that pushes asm code
 local function output()
 	return {
-
 		-- Make ASM code pretty with concatination
 		push = function( self, ... )
 			local topush = { ... }

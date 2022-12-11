@@ -3,6 +3,97 @@ local codeStore = require "lang.hyperC.assemblyCodeStore"
 
 local out, gVars, ifcount, usedReturn
 
+local function setupAliases()
+	out:push( "alias", "ra", "V0" )
+	out:push( "alias", "rb", "V1" )
+	out:push( "alias", "rc", "V2" )
+	out:push( "alias", "il", "V8" )
+	out:push( "alias", "ih", "V9" )
+	out:push( "alias", "rI", "VC" )
+	out:push( "alias", "rBP", "VB" )
+	out:push( "alias", "rSP", "VD" )
+	out:push( "alias", "rPC", "VE" )
+end
+
+local function setRegToLabelMem( label )
+	out:push( "LD", "il", label..".low" )
+	out:push( "LD", "ih", label..".high" )
+	out:push( "LDI", "ih", "il" )
+end
+
+local function setupFunctionHeader( name )
+	out:push( "func_"..name..":" )
+	out:push( "PUSH", "rBP" )
+	out:push( "LD", "rBP", "rSP" )
+end
+
+local function popStackN( n )
+	if n > 0 then
+		out:push( "LD", "rc", n )
+		out:push( "FLUSH", "rc" )
+	end
+end
+
+local function setupFunctionReturn( localCount )
+	popStackN( localCount )
+	out:push( "POP", "rBP" )
+	out:push( "RET" )
+end
+
+local function generateOperator( op )
+	if op == "+" then
+		out:push( "ADD", "ra", "rb" )
+	elseif op == "-" then
+		out:push( "SUB", "ra", "rb" )
+	elseif op == "*" then
+		out:push( "MUL", "ra", "rb" )
+	elseif op == "/" then
+		out:push( "DIV", "ra", "rb" )
+	elseif op == "%" then
+		out:push( "MOD", "ra", "rb" )
+	elseif op == "^" then
+		out:push( "POW", "ra", "rb" )
+	elseif op == ">" then
+		out:push( "SUBN", "ra", "rb" )
+		out:push( "SE", "VF", "0x1" )
+	elseif op == "<" then
+		out:push( "SUB", "ra", "rb" )
+		out:push( "SE", "VF", "0x1" )
+	elseif op == ">=" then
+		out:push( "SUBN", "ra", "rb" )
+		out:push( "SE", "ra", "0x0" )
+		out:push( "SE", "VF", "0x1" )
+	elseif op == "<=" then
+		out:push( "SUB", "ra", "rb" )
+		out:push( "SE", "ra", "0x0" )
+		out:push( "SE", "VF", "0x1" )
+	elseif op == "==" then
+		out:push( "SNE", "ra", "rb" )
+	elseif op == "!=" then
+		out:push( "SE", "ra", "rb" )
+	end
+end
+
+local function fetchLocalVariableFromStack( var, reg )
+	if var.value < 0 then
+		if reg == 0 then
+			out:push( "LD", "ra", math.abs( var.value ) + 2 )
+			out:push( "NGET", "ra" )
+		else
+			out:push( "LD", "rb", math.abs( var.value ) + 2 )
+			out:push( "NGET", "rb" )
+		end
+	else
+		if reg == 0 then
+			out:push( "LD", "ra", math.abs( var.value ) )
+			out:push( "GET", "ra" )
+		else
+			out:push( "LD", "rb", math.abs( var.value ) )
+			out:push( "GET", "rb" )
+		end
+	end
+end
+
 --------------------------------------------------
 -- Name: compile
 --
@@ -18,31 +109,19 @@ local function compile( tree, reg )
 		gVars = environment.new()
 		ifcount = 0
 		usedReturn = false
-		out:push( "alias", "ra", "V0" )
-		out:push( "alias", "rb", "V1" )
-		out:push( "alias", "rc", "V2" )
-		out:push( "alias", "il", "V8" )
-		out:push( "alias", "ih", "V9" )
-		out:push( "alias", "rI", "VC" )
-		out:push( "alias", "rBP", "VB" )
-		out:push( "alias", "rSP", "VD" )
-		out:push( "alias", "rPC", "VE" )
+		setupAliases()
 		out:push( "LD", "rBP", "rSP" )
 		for i=1, #tree.globals do
 			compile( tree.globals[ i ] )
 		end
-		out:push( "LD", "il", "libEnd.low" )
-		out:push( "LD", "ih", "libEnd.high" )
-		out:push( "LDI", "ih", "il" )
+		setRegToLabelMem( "libEnd" )
 		out:push( "LD", "rPC", "rI" )
 		for i=1, #tree.functions do
 			compile( tree.functions[ i ] )
 		end
 		out:push( "libEnd:" )
 		if gVars:get( {name="main"} ).type == "function" then
-			out:push( "LD", "il", "func_main.low" )
-			out:push( "LD", "ih", "func_main.high" )
-			out:push( "LDI", "ih", "il" )
+			setRegToLabelMem( "func_main" )
 			out:push( "CALL", "I" )
 		else
 			error( "No entry function found. (function main)", 0 )
@@ -62,18 +141,14 @@ local function compile( tree, reg )
 	elseif tree.type == "whileblock" then
 		local currifcount = ifcount
 		ifcount = ifcount + 1
-		out:push( "LD", "il", "whileend_"..currifcount..".low" )
-		out:push( "LD", "ih", "whileend_"..currifcount..".high" )
-		out:push( "LDI", "ih", "il" )
+		setRegToLabelMem( "whileend_"..currifcount )
 		out:push( "LD", "rPC", "rI" )
 
 		out:push( "while_"..currifcount..":" )
 		compile( tree.block )
 
 		out:push( "whileend_"..currifcount..":" )
-		out:push( "LD", "il", "while_"..currifcount..".low" )
-		out:push( "LD", "ih", "while_"..currifcount..".high" )
-		out:push( "LDI", "ih", "il" )
+		setRegToLabelMem( "while_"..currifcount )
 		compile( tree.cond )
 		out:push( "LD", "rPC", "rI" )
 	elseif tree.type == "vardef" then
@@ -87,9 +162,7 @@ local function compile( tree, reg )
 			gVars.localCount = gVars.localCount + 1
 		else
 			gVars:define( tree, "global_variable" )
-			out:push( "LD", "il", "var_"..tree.name..".low" )
-			out:push( "LD", "ih", "var_"..tree.name..".high" )
-			out:push( "LDI", "ih", "il" )
+			setRegToLabelMem( "var_"..tree.name )
 			out:push( "LD", "[I]", "ra" )
 		end
 	elseif tree.type == "varset" then
@@ -106,15 +179,11 @@ local function compile( tree, reg )
 				out:push( "SET", "rb", "ra" )
 			end
 		else
-			out:push( "LD", "il", "var_"..tree.name..".low" )
-			out:push( "LD", "ih", "var_"..tree.name..".high" )
-			out:push( "LDI", "ih", "il" )
+			setRegToLabelMem( "var_"..tree.name )
 			out:push( "LD", "[I]", "ra" )
 		end
 	elseif tree.type == "defunc" then
-		out:push( "func_"..tree.name..":" )
-		out:push( "PUSH", "rBP" )
-		out:push( "LD", "rBP", "rSP" )
+		setupFunctionHeader( tree.name )
 		gVars:define( tree, "function" )
 		gVars = environment.new( gVars )
 		for i=1, #tree.args do
@@ -122,24 +191,14 @@ local function compile( tree, reg )
 		end
 		compile( tree.body, "function" )
 		if usedReturn == false then
-			if gVars.localCount > 0 then
-				out:push( "LD", "rc", gVars.localCount )
-				out:push( "FLUSH", "rc" )
-			end
-			out:push( "POP", "rBP" )
-			out:push( "RET" )
+			setupFunctionReturn( gVars.localCount )
 		end
 		gVars = gVars.parent
 		usedReturn = false
 	elseif tree.type == "return" then
 		usedReturn = true
 		compile( tree.value )
-		if gVars.localCount > 0 then
-			out:push( "LD", "rc", gVars.localCount )
-			out:push( "FLUSH", "rc" )
-		end
-		out:push( "POP", "rBP" )
-		out:push( "RET" )
+		setupFunctionReturn( gVars.localCount )
 	elseif tree.type == "call" then
 		if tree.name == "clearScreen" then
 			out:push( "CLS" )
@@ -182,48 +241,35 @@ local function compile( tree, reg )
 						out:push( "PUSH", "ra" )
 					end
 				end
-				out:push( "LD", "il", "func_" .. tree.name .. ".low" )
-				out:push( "LD", "ih", "func_" .. tree.name .. ".high" )
-				out:push( "LDI", "ih", "il" )
+				setRegToLabelMem( "func_" .. tree.name )
 				out:push( "CALL", "I" )
-				if #tree.args > 0 then
-					out:push( "LD", "rc", #tree.args )
-					out:push( "FLUSH", "rc" )
-				end
+				popStackN( #tree.args )
 			end
 		end
 	elseif tree.type == "ifblock" then
 		local currifcount = ifcount
 		ifcount = ifcount + 1
-		out:push( "LD", "il", "if_"..currifcount..".low" )
-		out:push( "LD", "ih", "if_"..currifcount..".high" )
-		out:push( "LDI", "ih", "il" )
+		setRegToLabelMem( "if_"..currifcount )
 		compile( tree.cond )
 		out:push( "LD", "rPC", "rI" )
 
 		local elseblock = false
 		if tree.elseblock then
-			out:push( "LD", "il", "ifelse_"..currifcount..".low" )
-			out:push( "LD", "ih", "ifelse_"..currifcount..".high" )
-			out:push( "LDI", "ih", "il" )
+			setRegToLabelMem( "ifelse_"..currifcount )
 			out:push( "LD", "rPC", "rI" )
 			elseblock = true
 		else
-			out:push( "LD", "il", "ifend_"..currifcount..".low" )
-			out:push( "LD", "ih", "ifend_"..currifcount..".high" )
-			out:push( "LDI", "ih", "il" )
+			setRegToLabelMem( "ifend_"..currifcount )
 			out:push( "LD", "rPC", "rI" )
 		end
 
 		out:push( "if_"..currifcount..":" )
 		compile( tree.trueblock )
 
-		out:push( "LD", "il", "ifend_"..currifcount..".low" )
-		out:push( "LD", "ih", "ifend_"..currifcount..".high" )
-		out:push( "LDI", "ih", "il" )
-		out:push( "LD", "rPC", "rI" )
-
 		if tree.elseblock then
+			setRegToLabelMem( "ifend_"..currifcount )
+			out:push( "LD", "rPC", "rI" )
+
 			out:push( "ifelse_"..currifcount..":" )
 			compile( tree.elseblock )
 		end
@@ -261,42 +307,10 @@ local function compile( tree, reg )
 				out:push( "LD", "rb", v )
 			end
 		end
-		if tree.op == "+" then
-			out:push( "ADD", "ra", "rb" )
-		elseif tree.op == "-" then
-			out:push( "SUB", "ra", "rb" )
-		elseif tree.op == "*" then
-			out:push( "MUL", "ra", "rb" )
-		elseif tree.op == "/" then
-			out:push( "DIV", "ra", "rb" )
-		elseif tree.op == "%" then
-			out:push( "MOD", "ra", "rb" )
-		elseif tree.op == "^" then
-			out:push( "POW", "ra", "rb" )
-		elseif tree.op == ">" then
-			out:push( "SUBN", "ra", "rb" )
-			out:push( "SE", "VF", "0x1" )
-		elseif tree.op == "<" then
-			out:push( "SUB", "ra", "rb" )
-			out:push( "SE", "VF", "0x1" )
-		elseif tree.op == ">=" then
-			out:push( "SUBN", "ra", "rb" )
-			out:push( "SE", "ra", "0x0" )
-			out:push( "SE", "VF", "0x1" )
-		elseif tree.op == "<=" then
-			out:push( "SUB", "ra", "rb" )
-			out:push( "SE", "ra", "0x0" )
-			out:push( "SE", "VF", "0x1" )
-		elseif tree.op == "==" then
-			out:push( "SNE", "ra", "rb" )
-		elseif tree.op == "!=" then
-			out:push( "SE", "ra", "rb" )
-		end
+		generateOperator( tree.op )
 	elseif tree.type == "fetch" then
 		if gVars:get( tree ).type == "global_variable" then
-			out:push( "LD", "il", "var_"..tree.name..".low" )
-			out:push( "LD", "ih", "var_"..tree.name..".high" )
-			out:push( "LDI", "ih", "il" )
+			setRegToLabelMem( "var_"..tree.name )
 			if reg == 0 then
 				out:push( "LD", "ra", "[I]" )
 			else
@@ -307,23 +321,7 @@ local function compile( tree, reg )
 			end
 		else
 			local var = gVars:get( tree )
-			if var.value < 0 then
-				if reg == 0 then
-					out:push( "LD", "ra", math.abs( var.value ) + 2 )
-					out:push( "NGET", "ra" )
-				else
-					out:push( "LD", "rb", math.abs( var.value ) + 2 )
-					out:push( "NGET", "rb" )
-				end
-			else
-				if reg == 0 then
-					out:push( "LD", "ra", math.abs( var.value ) )
-					out:push( "GET", "ra" )
-				else
-					out:push( "LD", "rb", math.abs( var.value ) )
-					out:push( "GET", "rb" )
-				end
-			end
+			fetchLocalVariableFromStack( var, reg )
 		end
 	elseif tree.type == "num" then
 		return tree.value
