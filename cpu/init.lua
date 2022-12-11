@@ -3,6 +3,8 @@
 -- Description:
 -- This is a modified Chip-8 interpreter. Named as HyperChip-8.
 
+local instructions = require "cpu.instructions"
+
 -- Registers
 local R = {
 	ST = 0xA;
@@ -12,8 +14,6 @@ local R = {
 	PC = 0xE;
 	FLAG = 0xF;
 }
-
-local instructions = require "instructions"
 
 -- The font sprites for hexadecimal digits.
 local MEM_FONT = {
