@@ -1,20 +1,7 @@
 local lgp = love.graphics.print
 local localScreen = {}
 
-local switch = {
-	[ 0 ] = function( self, value )
-		self:clear()
-	end;
-	[ 1 ] = function( self, value )
-		self.termX = value
-	end;
-	[ 2 ] = function( self, value )
-		self.termY = value
-	end;
-	[ 3 ] = function( self, value )
-		lgp( string.char( value ), self.termX * 4, self.termY * 6 )
-	end;
-}
+local instructions = require "screen.instructions"
 
 return {
 	create = function( w, h, s )
@@ -93,7 +80,7 @@ return {
 			handle = function( self )
 				while #self.events > 0 do
 					local event = table.remove( self.events, 1 )
-					switch[ event.type ]( self, unpack( event.args ) )
+					instructions[ event.type ]( self, unpack( event.args ) )
 				end
 			end;
 

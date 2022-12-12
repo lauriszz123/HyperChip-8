@@ -1,0 +1,7 @@
+return {
+    BP  = 0xB;
+    I  = 0xC;
+    SP = 0xD;
+    PC = 0xE;
+    FLAG = 0xF;
+}

@@ -2,6 +2,9 @@
 --
 -- Description: Instructions for HyperChip-8
 
+-- Registers
+local R = require "cpu.registers"
+
 local bit = bit32 or bit
 
 -- How many bytes are used for each character in memory.
@@ -25,15 +28,6 @@ local DISPLAY_H = 32
 
 -- Number of digits in base 10.
 local DECIMAL = 10
-
--- Registers
-local R = {
-    BP  = 0xB;
-    I  = 0xC;
-    SP = 0xD;
-    PC = 0xE;
-    FLAG = 0xF;
-}
 
 local band = bit.band
 local bor = bit.bor
