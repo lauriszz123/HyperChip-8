@@ -5,6 +5,15 @@ return function( aliases )
 		[ "HLT" ] = function( prog )
 			prog:push( 0x0000 )
 		end;
+		[ "HCE" ] = function( prog )
+			prog:push( 0x00E1 )
+		end;
+		[ "LOW" ] = function( prog )
+			prog:push( 0x00E2 )
+		end;
+		[ "SHUTDOWN" ] = function( prog )
+			prog:push( 0x0001 )
+		end;
 		[ "CLS" ] = function( prog )
 			prog:push( 0x00E0 )
 		end;
@@ -337,6 +346,25 @@ return function( aliases )
 			local inst = bit.bor( 0xD000, bit.lshift( vx, DIGIT * 2 ) )
 			inst = bit.bor( inst, bit.lshift( vy, DIGIT ) )
 			inst = bit.bor( inst, n )
+			prog:push( inst )
+		end;
+		[ "OUT" ] = function( prog, vx, vy, vz )
+			if aliases[ vx ] then
+				vx = aliases[ vx ]:upper()
+			end
+			if aliases[ vy ] then
+				vy = aliases[ vy ]:upper()
+			end
+			if aliases[ vz ] then
+				vz = aliases[ vz ]:upper()
+			end
+			local vx = tonumber( "0x"..vx:sub( 2, 2 ) )
+			local vy = tonumber( "0x"..vy:sub( 2, 2 ) )
+			local vz = tonumber( "0x"..vz:sub( 2, 2 ) )
+
+			local inst = bit.bor( 0xD000, bit.lshift( vx, DIGIT * 2 ) )
+			inst = bit.bor( inst, bit.lshift( vy, DIGIT ) )
+			inst = bit.bor( inst, vz )
 			prog:push( inst )
 		end;
 		[ "SKP" ] = function( prog, vx )

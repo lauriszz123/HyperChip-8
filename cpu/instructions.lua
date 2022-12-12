@@ -49,7 +49,9 @@ instructions[ 0x0000 ] = function( self, opcode )
 
     -- HLT
     if address == 0x0000 then
-    	self.isRunning = false
+        self.isRunning = false
+    elseif address == 0x0001 then
+        love.quit()
     -- HCE - Turn On HyperChip-8
     elseif address == 0x00E1 then
     	self.hyper = true
@@ -64,6 +66,9 @@ instructions[ 0x0000 ] = function( self, opcode )
         self.rV[ R.SP ] = self.rV[ R.SP ] + 1
         
         self.rV[ R.PC ] = self.memory[ self.rV[ R.SP ] ]
+    -- RTI
+    elseif address == 0x00EF then
+        self:returnFromInterupt()
     elseif address >= 0x00F0 and address <= 0x0CA0 then
         -- SYSTEM CALLS PRE DEFINED
         
@@ -83,10 +88,10 @@ end
 
 -- CALL addr
 instructions[ 0x2000 ] = function( self, opcode )
-	local sp = self.rV[ R.SP ]
+    local sp = self.rV[ R.SP ]
     self.memory[ sp ] = self.rV[ R.PC ]
     self.rV[ R.SP ] = sp - 1
-    
+
     self.rV[ R.PC ] = band( opcode, 0x0FFF )
 end
 

@@ -1,6 +1,9 @@
 return {
 	[ "HLT" ] = 1;
+	[ "SHUTDOWN" ] = 1;
 	[ "CLS" ] = 1;
+	[ "HCE" ] = 1;
+	[ "LOW" ] = 1;
 	[ "RET" ] = 1;
 	[ "JP" ] = 2;
 	[ "CALL" ] = 2;
@@ -18,6 +21,7 @@ return {
 	[ "SHL" ] = 2;
 	[ "RND" ] = 3;
 	[ "DRW" ] = 4;
+	[ "OUT" ] = 4;
 	[ "SKP" ] = 2;
 	[ "SKNP" ] = 2;
 	[ "LDI" ] = 3;

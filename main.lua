@@ -2,13 +2,14 @@ io.stdout:setvbuf('no')
 
 DEBUG = false
 
-local screen = (require "screen").create( 160, 128, 5 )
+local screen = require "screen"
 local CPU = require "cpu"
 CPU_SPEED_MAX = math.floor( 6670000 / 60 )
 --local CPU_SPEED_MAX = 0xFF
 CPU_SPEED_MIN = math.floor( 1000000 / 60 )
 
 local lang = require "lang"
+local deviceManager = require "deviceManager"
 local keys = require "cpu.keys"
 local loadFrames = require "loveFramesLoader"
 
@@ -62,9 +63,13 @@ function love.load()
 	} )
 	if not ok then error( "Unable to set up the screen.", 0 ) end
 
+	screen = screen.create( 160, 128, 5 )
 	screen:init()
 
-	cpu = CPU.create( screen, 2, 0x10000 )
+	deviceManager:registerDevice( "Built-in Screen", screen )
+
+	cpu = CPU.create( screen, deviceManager, 2, 0x10000 )
+	deviceManager:setCPU( cpu )
 
 	loveframes = loadFrames( cpu, screen, lang, oldPrint )
 end
@@ -92,7 +97,10 @@ function love.update( dt )
 	if dt <= 0.025125 then
 		loveframes.update( dt )
 	end
+	screen:set()
 	cpu:cycle()
+	deviceManager:handle()
+	screen.reset()
 end
 
 function love.draw()

@@ -55,9 +55,11 @@ return {
 			clear = function ( self )
 				love.graphics.clear( 0, 0, 0 )
 				localScreen = {}
+				self.termX = 0
+				self.termY = 0
 			end;
 
-			pushEvent = function( self, t, ... )
+			addEvent = function( self, t, ... )
 				table.insert( self.events, {
 					type = t,
 					args = { ... }

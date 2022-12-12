@@ -13,6 +13,7 @@ local function setupAliases()
 	out:push( "alias", "rBP", "VB" )
 	out:push( "alias", "rSP", "VD" )
 	out:push( "alias", "rPC", "VE" )
+	out:push( "HCE" )
 end
 
 local function setRegToLabelMem( label )
@@ -230,6 +231,31 @@ local function compile( tree, reg )
 			out:push( "POP", "ra" )
 			out:push( "POP", "rb" )
 			out:push( "DRW", "ra", "rb", 5 )
+		elseif tree.name == "output" then
+			local y = compile( tree.args[ 3 ], 0 )
+			if y then
+				out:push( "LD", "ra", y )
+				out:push( "PUSH", "ra" )
+			else
+				out:push( "PUSH", "ra" )
+			end
+
+			local x = compile( tree.args[ 2 ], 0 )
+			if x then
+				out:push( "LD", "ra", x )
+				out:push( "PUSH", "ra" )
+			else
+				out:push( "PUSH", "ra" )
+			end
+
+			local f = compile( tree.args[ 1 ], 0 )
+			if f then
+				out:push( "LD", "ra", f )
+			end
+
+			out:push( "POP", "rb" )
+			out:push( "POP", "rc" )
+			out:push( "OUT", "ra", "rb", "rc" )
 		else
 			if gVars:get( tree ).type == "function" then
 				for i=#tree.args, 1, -1 do

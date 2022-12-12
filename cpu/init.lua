@@ -5,34 +5,16 @@
 
 local instructions = require "cpu.instructions"
 
+-- The font sprites for hexadecimal digits.
+local MEM_FONT = require "cpu.font"
+
 -- Registers
 local R = {
-	ST = 0xA;
-	DT = 0xB;
-	I  = 0xC;
-	SP = 0xD;
-	PC = 0xE;
-	FLAG = 0xF;
-}
-
--- The font sprites for hexadecimal digits.
-local MEM_FONT = {
-    0xF0, 0x90, 0x90, 0x90, 0xF0,   -- 0
-    0x20, 0x60, 0x20, 0x20, 0x70,   -- 1
-    0xF0, 0x10, 0xF0, 0x80, 0xF0,   -- 2
-    0xF0, 0x10, 0xF0, 0x10, 0xF0,   -- 3
-    0x90, 0x90, 0xF0, 0x10, 0x10,   -- 4
-    0xF0, 0x80, 0xF0, 0x10, 0xF0,   -- 5
-    0xF0, 0x80, 0xF0, 0x90, 0xF0,   -- 6
-    0xF0, 0x10, 0x20, 0x40, 0x40,   -- 7
-    0xF0, 0x90, 0xF0, 0x90, 0xF0,   -- 8
-    0xF0, 0x90, 0xF0, 0x10, 0xF0,   -- 9
-    0xF0, 0x90, 0xF0, 0x90, 0x90,   -- A
-    0xE0, 0x90, 0xE0, 0x90, 0xE0,   -- B
-    0xF0, 0x80, 0x80, 0x80, 0xF0,   -- C
-    0xE0, 0x90, 0x90, 0x90, 0xE0,   -- D
-    0xF0, 0x80, 0xF0, 0x80, 0xF0,   -- E
-    0xF0, 0x80, 0xF0, 0x80, 0x80    -- F
+    BP  = 0xB;
+    I  = 0xC;
+    SP = 0xD;
+    PC = 0xE;
+    FLAG = 0xF;
 }
 
 local errors = {
@@ -46,14 +28,16 @@ local band = bit.band
 
 return {
 	errors = errors;
-	create = function( screen, speed, ramSize )
-		print( "CPU Created." )
+	create = function( screen, deviceManager, speed, ramSize )
 		return {
 			speed = speed;
 			memory = {};
-			ramSize = ramSize;
-			screen = screen;
 			keypad = {};
+			interuptTable = {};
+
+			ramSize = ramSize;
+			deviceManager = deviceManager;
+			screen = screen;
 			DT = 0;
 			ST = 0;
 
@@ -76,6 +60,8 @@ return {
 					self.keypad[ i ] = 0x0
 				end
 
+				self.interuptTable = {}
+
 				self.rV[ R.PC ] = 0x200
 				self.rV[ R.SP ] = self.ramSize - 1
 				self.rV[ R.I ] = 0
@@ -84,6 +70,35 @@ return {
 				self.ST = 0;
 
 				print( "CPU Reset." )
+			end;
+
+			interuptProgram = function( self, jump )
+				if self.interupt == true then
+					local sp = self.rV[ R.SP ]
+					local bp = self.rV[ R.BP ]
+
+					table.insert( self.interuptTable, {
+						rV = self.rV;
+						ST = self.ST;
+						DT = self.DT;
+					} )
+					self.rV = {}
+					for i=0, 0xF do
+						self.rV[ i ] = 0x0
+					end
+					self.rV[ R.SP ] = sp
+					self.rV[ R.PC ] = jump
+					self.rV[ R.BP ] = bp
+					self.DT = 0
+					self.ST = 0
+				end
+			end;
+
+			returnFromInterupt = function( self )
+				local data = table.remove( self.interuptTable )
+				self.rV = data.rV
+				self.DT = data.DT
+				self.ST = data.ST
 			end;
 
 			loadProgram = function( self, name )
@@ -127,14 +142,12 @@ return {
 
 			cycle = function( self )
 				if self.isRunning == true then
-					self.screen:set()
 					for i=0, self.speed do
 						if self.rV[ R.PC ] >= 0x20000 then
 							self.isRunning = false
 							return errors.CYCLES_OUT_OF_BOUNDS
 						end
 						local err = self:step( self:fetch() )
-						self.screen:handle()
 						if err then
 							return
 						end
@@ -151,8 +164,6 @@ return {
 				    if self.ST > 0 then
 				        self.ST = self.ST - 1
 				    end
-
-				    self.screen.reset()
 			    end
 			end;
 		}
