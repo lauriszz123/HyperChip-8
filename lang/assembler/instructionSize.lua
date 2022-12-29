@@ -2,9 +2,12 @@ return {
 	[ "HLT" ] = 1;
 	[ "SHUTDOWN" ] = 1;
 	[ "CLS" ] = 1;
+	[ "INE" ] = 1;
+	[ "IND" ] = 1;
 	[ "HCE" ] = 1;
 	[ "LOW" ] = 1;
 	[ "RET" ] = 1;
+	[ "RTI" ] = 1;
 	[ "JP" ] = 2;
 	[ "CALL" ] = 2;
 	[ "SE" ] = 3;
@@ -21,7 +24,7 @@ return {
 	[ "SHL" ] = 2;
 	[ "RND" ] = 3;
 	[ "DRW" ] = 4;
-	[ "OUT" ] = 4;
+	[ "HWD" ] = 4;
 	[ "SKP" ] = 2;
 	[ "SKNP" ] = 2;
 	[ "LDI" ] = 3;
@@ -32,4 +35,5 @@ return {
 	[ "GET" ] = 2;
 	[ "NSET" ] = 3;
 	[ "SET" ] = 3;
+	[ "INT" ] = 2;
 }

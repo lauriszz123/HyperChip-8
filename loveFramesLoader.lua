@@ -76,6 +76,7 @@ return function( cpu, screen, lang, oldPrint )
 		if errMessage == nil then
 			oldPrint( "Size:", cpu:loadProgram( "main.ch8" ).." bytes" )
 		else
+			print( errMessage )
 			screen:set()
 			love.graphics.setColor( 1,0,0 )
 			love.graphics.printf( errMessage, 1, 1, 159 )

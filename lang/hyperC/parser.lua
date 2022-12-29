@@ -31,7 +31,7 @@ local function parse( tokens )
 					tokens.next()
 					return
 				else
-					tokens.error( "Expected: '" .. v .. "' (type: '" .. t .. "') got '" .. peek.type .. "' (value: '" .. v .. "')"..(e or ".") )
+					tokens.error( "Expected: '" .. v .. "' (type: '" .. t .. "') got '" .. peek.value .. "' (type: '" .. peek.type .. "')"..(e or ".") )
 				end
 			else
 				return tokens.next()
@@ -61,13 +61,27 @@ local function parse( tokens )
 						name = name,
 					}
 				end
+			elseif tokens.peek().type == "op" then
+				expect( "op", "*" )
+				return {
+					type = "deref";
+					name = expect( "id" ).value
+				}
 			elseif tokens.peek().type == "num" then
 				return tokens.next()
-			elseif tokens.peek().type == "prec" and tokens.peek().value == "(" then
-				expect( "prec", "(", "(Binary Expression)" )
-				local expr = expr()
-				expect( "prec", ")", "(Binary Expression)" )
-				return expr
+			elseif tokens.peek().type == "prec" then
+				if tokens.peek().value == "(" then
+					expect( "prec", "(", "(Binary Expression)" )
+					local expr = expr()
+					expect( "prec", ")", "(Binary Expression)" )
+					return expr
+				elseif tokens.peek().value == "&" then
+					expect( "prec", "&" )
+					return {
+						type = "varaddr";
+						name = expect( "id" ).value
+					}
+				end
 			end
 		end
 	end
@@ -93,6 +107,7 @@ local function parse( tokens )
 		local left = left or atom()
 		if tokens.peek() then
 			if tokens.peek().type == "op" then
+				print( tokens.peek().value )
 				local otherPrec = PRECEDENCE[ tokens.peek().value ]
 				if otherPrec > myPrec then
 					local op = tokens.next().value
@@ -147,6 +162,11 @@ local function parse( tokens )
 	--------------------------------------------------
 	local function vardef()
 		expect( "id", "var", "(Expected keyword 'var')" )
+		local pointer = false
+		if tokens.peek().value == "*" then
+			expect( "op", "*" )
+			pointer = true
+		end
 		local name = expect( "id", nil, "(Variable Definition in 'var')" ).value
 		if tokens.peek().value == "[" then
 			expect( "prec", '[' )
@@ -159,6 +179,7 @@ local function parse( tokens )
 				name = name;
 				size = size;
 				expr = expr();
+				isPointer = pointer;
 			}
 		else
 			expect( "op", "=", "(Expected keyword 'var')" )
@@ -167,6 +188,7 @@ local function parse( tokens )
 				line = tokens.getLine(),
 				name = name;
 				expr = expr();
+				isPointer = pointer;
 			}
 		end
 	end
@@ -243,11 +265,16 @@ local function parse( tokens )
 	local function toasm()
 		expect( "id", "__asm__" )
 		expect( "prec", '{' )
+
+		local function acceptable( v )
+			return v:find( "[a-zA-Z_;:%.0-9%, \n\r\t]" ) ~= nil
+		end
+
 		local asmCode = ""
 		while tokens.eof() == false do
-			if tokens.peek().type == "id" or tokens.peek().type == "num" or (tokens.peek().type == "prec" and (tokens.peek().value == ":" or tokens.peek().value == ",")) then
-				asmCode = asmCode .. tokens.next().value .. " "
-			elseif tokens.peek().value == "}" then
+			if acceptable( tokens.input.peek() ) then
+				asmCode = asmCode .. tokens.input.next()
+			elseif tokens.input.peek() == "}" then
 				break
 			else
 				tokens.error( "Unexpected error compiling ASM code." )
@@ -358,11 +385,27 @@ local function parse( tokens )
 	--------------------------------------------------
 	local function func()
 		expect( "id", "func" )
+		local name = expect( "id" ).value
+		local args = defargs()
+		if tokens.peek().value == "as" then
+			expect( "id", "as" )
+			expect( "id", "interupt" )
+			expect( "prec", ':' )
+			local location = expect( "num" )
+			return {
+				type = "defuncint",
+				line = tokens.getLine(),
+				name = name,
+				args = args,
+				body = block(),
+				location = location
+			}
+		end
 		return {
 			type = "defunc",
 			line = tokens.getLine(),
-			name = expect( "id" ).value,
-			args = defargs(),
+			name = name,
+			args = args,
 			body = block()
 		}
 	end
@@ -383,6 +426,9 @@ local function parse( tokens )
 					prog[ #prog + 1 ] = vardef()
 				elseif tokens.peek().value == "return" then
 					prog[ #prog + 1 ] = ret()
+					if tokens.peek().type == "prec" and tokens.peek().value == ";" then
+						expect( "prec", ";" )
+					end
 				elseif tokens.peek().value == "if" then
 					prog[ #prog + 1 ] = ifb()
 				elseif tokens.peek().value == "while" then
@@ -393,6 +439,9 @@ local function parse( tokens )
 					prog[ #prog + 1 ] = {
 						type = "break",
 					}
+					if tokens.peek().type == "prec" and tokens.peek().value == ";" then
+						expect( "prec", ";" )
+					end
 				elseif tokens.peek().value == "}" then
 					break
 				else
@@ -401,6 +450,9 @@ local function parse( tokens )
 						prog[ #prog + 1 ] = varset( name )
 					else
 						prog[ #prog + 1 ] = call( name )
+					end
+					if tokens.peek().type == "prec" and tokens.peek().value == ";" then
+						expect( "prec", ";" )
 					end
 				end
 			else
@@ -431,8 +483,14 @@ local function parse( tokens )
 			if tokens.peek() then
 				if tokens.peek().value == "var" then
 					globals[ #globals + 1 ] = vardef()
+					if tokens.peek().type == "prec" then
+						expect( "prec", ";" )
+					end
 				elseif tokens.peek().value == "def" then
 					functions[ #functions + 1 ] = def()
+					if tokens.peek().type == "prec" then
+						expect( "prec", ";" )
+					end
 				elseif tokens.peek().value == "func" then
 					functions[ #functions + 1 ] = func()
 				elseif tokens.peek().value == "__asm__" then

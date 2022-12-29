@@ -1,6 +1,6 @@
 io.stdout:setvbuf('no')
 
-DEBUG = false
+DEBUG = true
 
 local screen = require "screen"
 local CPU = require "cpu"
@@ -63,9 +63,7 @@ function love.load()
 	} )
 	if not ok then error( "Unable to set up the screen.", 0 ) end
 
-	screen = screen.create( 160, 128, 5 )
-	screen:init()
-
+	screen = screen.create( 160, 128, 5, deviceManager )
 	deviceManager:registerDevice( "Built-in Screen", screen )
 
 	cpu = CPU.create( screen, deviceManager, 2, 0x10000 )
@@ -97,10 +95,12 @@ function love.update( dt )
 	if dt <= 0.025125 then
 		loveframes.update( dt )
 	end
-	screen:set()
 	cpu:cycle()
-	deviceManager:handle()
-	screen.reset()
+	if cpu.interupt == true and cpu.softInterupt == true and cpu.interupted == true then
+		screen:set()
+		deviceManager:handle()
+		screen.reset()
+	end
 end
 
 function love.draw()

@@ -10,7 +10,7 @@ local instructions = require "cpu.instructions"
 local MEM_FONT = require "cpu.font"
 
 -- Registers
-local R = REQUIRE "cpu.registers"
+local R = require "cpu.registers"
 
 local errors = {
 	CYCLES_OUT_OF_BOUNDS = 0x1;
@@ -38,6 +38,8 @@ return {
 
 			rV = {};
 			interupt = false;
+			softInterupt = false;
+			interupted = false;
 
 			isRunning = false;
 
@@ -60,7 +62,9 @@ return {
 				self.rV[ R.PC ] = 0x200
 				self.rV[ R.SP ] = self.ramSize - 1
 				self.rV[ R.I ] = 0
-				self.interupt = false;
+				self.interupt = false
+				self.softInterupt = false
+				self.interupted = false
 				self.DT = 0;
 				self.ST = 0;
 
@@ -83,17 +87,34 @@ return {
 					end
 					self.rV[ R.SP ] = sp
 					self.rV[ R.PC ] = jump
-					self.rV[ R.BP ] = bp
+					sinself.rV[ R.BP ] = bp
 					self.DT = 0
 					self.ST = 0
+					self.interupted = true
+				end
+			end;
+
+			softwareInterupt = function( self, device )
+				if self.interupt == true then
+					self.interupted = true
+					self.running = false
+					self.softInterupt = true
+					self.deviceManager:setCurrentDevice( device )
 				end
 			end;
 
 			returnFromInterupt = function( self )
-				local data = table.remove( self.interuptTable )
-				self.rV = data.rV
-				self.DT = data.DT
-				self.ST = data.ST
+				if self.softInterupt == true then
+					self.interupted = false
+					self.running = true
+					self.softInterupt = false
+				else
+					local data = table.remove( self.interuptTable )
+					self.rV = data.rV
+					self.DT = data.DT
+					self.ST = data.ST
+					self.interupted = false
+				end
 			end;
 
 			loadProgram = function( self, name )

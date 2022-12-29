@@ -16,10 +16,12 @@ local function setupAliases()
 	out:push( "HCE" )
 end
 
-local function setRegToLabelMem( label )
+local function setRegToLabelMem( label, addr )
 	out:push( "LD", "il", label..".low" )
 	out:push( "LD", "ih", label..".high" )
-	out:push( "LDI", "ih", "il" )
+	if addr == nil or addr == false then
+		out:push( "LDI", "ih", "il" )
+	end
 end
 
 local function setupFunctionHeader( name )
@@ -29,9 +31,14 @@ local function setupFunctionHeader( name )
 end
 
 local function popStackN( n )
-	if n > 0 then
+	if n > 2 then
 		out:push( "LD", "rc", n )
 		out:push( "FLUSH", "rc" )
+	elseif n > 1 then
+		out:push( "POP", "rc" )
+		out:push( "POP", "rc" )
+	elseif n > 0 then
+		out:push( "POP", "rc" )
 	end
 end
 
@@ -132,6 +139,8 @@ local function compile( tree, reg )
 		for k, v in pairs( gVars.variables ) do
 			if v.type == "global_variable" then
 				out:push( "var_"..k..": db", "0x1", "0x0" )
+			elseif v.type == "globalptr_variable" then
+				out:push( "var_"..k..": db", "0x2", "0x0", "0x0" )
 			end
 		end
 		return out
@@ -153,19 +162,44 @@ local function compile( tree, reg )
 		compile( tree.cond )
 		out:push( "LD", "rPC", "rI" )
 	elseif tree.type == "vardef" then
-		local v = compile( tree.expr )
-		if v then
-			out:push( "LD", "ra", v )
-		end
-		if reg == "function" then
-			gVars:define( tree, "local_variable", gVars.localCount )
-			out:push( "PUSH", "ra" )
-			gVars.localCount = gVars.localCount + 1
+		out:push( "; variable definition =", tree.name )
+
+		if tree.isPointer == true then
+			local v = compile( tree.expr )
+			if v then
+				out:push( "LD", "ih", "0" )
+				out:push( "LD", "il", v )
+			end
+			if reg == "function" then
+				gVars:define( tree, "localptr_variable", gVars.localCount )
+				out:push( "PUSH", "ra" )
+				gVars.localCount = gVars.localCount + 1
+			else
+				out:push( "LD", "ra", "ih" )
+				out:push( "LD", "rb", "il" )
+				gVars:define( tree, "globalptr_variable" )
+				setRegToLabelMem( "var_"..tree.name )
+				out:push( "LD", "[I]", "ra" )
+				out:push( "LD", "ra", "rb" )
+				out:push( "ADD", "rI", "1" )
+				out:push( "LD", "[I]", "ra" )
+			end
 		else
-			gVars:define( tree, "global_variable" )
-			setRegToLabelMem( "var_"..tree.name )
-			out:push( "LD", "[I]", "ra" )
+			local v = compile( tree.expr )
+			if v then
+				out:push( "LD", "ra", v )
+			end
+			if reg == "function" then
+				gVars:define( tree, "local_variable", gVars.localCount )
+				out:push( "PUSH", "ra" )
+				gVars.localCount = gVars.localCount + 1
+			else
+				gVars:define( tree, "global_variable" )
+				setRegToLabelMem( "var_"..tree.name )
+				out:push( "LD", "[I]", "ra" )
+			end
 		end
+		out:push( "; variable definition\n")
 	elseif tree.type == "varset" then
 		local v = compile( tree.expr )
 		if v then
@@ -335,7 +369,19 @@ local function compile( tree, reg )
 		end
 		generateOperator( tree.op )
 	elseif tree.type == "fetch" then
+		out:push( "; fetch variable = "..tree.name )
+
 		if gVars:get( tree ).type == "global_variable" then
+			setRegToLabelMem( "var_"..tree.name )
+			if reg == 0 then
+				out:push( "LD", "ra", "[I]" )
+			else
+				out:push( "PUSH", "ra" )
+				out:push( "LD", "ra", "[I]" )
+				out:push( "LD", "rb", "ra" )
+				out:push( "POP", "ra" )
+			end
+		elseif gVars:get( tree ).type == "globalptr_variable" then
 			setRegToLabelMem( "var_"..tree.name )
 			if reg == 0 then
 				out:push( "LD", "ra", "[I]" )
@@ -349,6 +395,29 @@ local function compile( tree, reg )
 			local var = gVars:get( tree )
 			fetchLocalVariableFromStack( var, reg )
 		end
+
+		out:push( "; fetch variable\n" )
+	elseif tree.type == "varaddr" then
+		out:push( "; variable address =", tree.name )
+
+		setRegToLabelMem( "var_"..tree.name, true )
+
+		out:push( "; variable address\n" )
+	elseif tree.type == "deref" then
+		out:push( "; deref =", tree.name )
+
+		setRegToLabelMem( "var_"..tree.name )
+		out:push( "LD", "ra", "[I]" )
+		out:push( "LD", "ih", "ra" )
+		out:push( "ADD", "rI", "1" )
+		out:push( "LD", "ra", "[I]" )
+		out:push( "LD", "il", "ra" )
+		out:push( "LDI", "ih", "il" )
+		out:push( "LD", "ra", "[I]" )
+
+		out:push( "; deref\n" )
+	elseif tree.type == "asmcode" then
+		out:push( tree.asmCode )
 	elseif tree.type == "num" then
 		return tree.value
 	end

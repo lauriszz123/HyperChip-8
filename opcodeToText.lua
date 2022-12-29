@@ -131,6 +131,8 @@ local function opToText( n1, n2 )
 	    -- FLUSH Vx
 	    elseif byte == 0x04 then
 	        return "FLUSH V"..strf( "%01x", x )
+	    elseif byte == 0x05 then
+	        return "INT V"..strf( "%01x", x )
 	    -- LD Vx, DT
 	    elseif byte == 0x07 then
 	        return "LD V"..strf( "%01x", x )..", DT"

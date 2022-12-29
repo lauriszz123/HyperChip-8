@@ -1,6 +1,10 @@
 return {
 	[ 0 ] = function( self, value )
-		self:clear()
+		if value == 0 then
+			self.deviceManager.cpu.rV[ 0 ] = 0xCE
+			self.deviceManager.cpu:returnFromInterupt()
+			self:init()
+		end
 	end;
 	[ 1 ] = function( self, value )
 		self.termX = value

@@ -4,7 +4,7 @@ local localScreen = {}
 local instructions = require "screen.instructions"
 
 return {
-	create = function( w, h, s )
+	create = function( w, h, s, deviceManager )
 		return {
 			mode = 0;
 			width = w;
@@ -13,6 +13,7 @@ return {
 			events = {};
 			termX = 0;
 			termY = 0;
+			deviceManager = deviceManager;
 
 			init = function( self )
 				self.canvas = love.graphics.newCanvas( self.width, self.height )
@@ -33,8 +34,6 @@ return {
 			set = function( self )
 				if self.canvas then
 					love.graphics.setCanvas( self.canvas )
-				else
-					error( "No canvas created.", 0 )
 				end
 			end;
 			reset = love.graphics.setCanvas;
@@ -46,10 +45,10 @@ return {
 				self.termY = 0
 			end;
 
-			addEvent = function( self, t, ... )
+			addEvent = function( self, t, value )
 				table.insert( self.events, {
 					type = t,
-					args = { ... }
+					value = value
 				} )
 			end;
 
@@ -80,12 +79,14 @@ return {
 			handle = function( self )
 				while #self.events > 0 do
 					local event = table.remove( self.events, 1 )
-					instructions[ event.type ]( self, unpack( event.args ) )
+					instructions[ event.type ]( self, event.value )
 				end
 			end;
 
 			draw = function( self, x, y )
-				love.graphics.draw( self.canvas, x, y, 0, 3, 3 )
+				if self.canvas then
+					love.graphics.draw( self.canvas, x, y, 0, 3, 3 )
+				end
 			end;
 		}
 	end;

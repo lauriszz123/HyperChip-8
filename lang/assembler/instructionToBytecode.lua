@@ -17,8 +17,17 @@ return function( aliases )
 		[ "CLS" ] = function( prog )
 			prog:push( 0x00E0 )
 		end;
+		[ "INE" ] = function( prog )
+			prog:push( 0x00EC )
+		end;
+		[ "IND" ] = function( prog )
+			prog:push( 0x00ED )
+		end;
 		[ "RET" ] = function( prog )
 			prog:push( 0x00EE )
+		end;
+		[ "RTI" ] = function( prog )
+			prog:push( 0x00EF )
 		end;
 		[ "JP" ] = function( prog, addr, reg )
 			addr = tonumber( addr )
@@ -348,7 +357,7 @@ return function( aliases )
 			inst = bit.bor( inst, n )
 			prog:push( inst )
 		end;
-		[ "OUT" ] = function( prog, vx, vy, vz )
+		[ "HWD" ] = function( prog, vx, vy, vz )
 			if aliases[ vx ] then
 				vx = aliases[ vx ]:upper()
 			end
@@ -434,6 +443,14 @@ return function( aliases )
 			end
 			vx = tonumber( "0x"..vx:sub( 2, 2 ) )
 			local inst = bit.bor( 0xF003, bit.lshift( vx, DIGIT * 2 ) )
+			prog:push( inst )
+		end;
+		[ "INT" ] = function( prog, vx )
+			if aliases[ vx ] then
+				vx = aliases[ vx ]:upper()
+			end
+			vx = tonumber( "0x"..vx:sub( 2, 2 ) )
+			local inst = bit.bor( 0xF005, bit.lshift( vx, DIGIT * 2 ) )
 			prog:push( inst )
 		end;
 		[ "NSET" ] = function( prog, vx, vy )

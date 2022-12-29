@@ -23,15 +23,21 @@ local function tokenize( input )
 	local function isNumber( v )
 		return v:find( "[0-9]" ) ~= nil
 	end
+	local function isHexNumber( v )
+		return v:find( "[0-9a-fA-F]" ) ~= nil
+	end
 
 	-- Check if a charachter is a whitespace
+	local function newLine( v )
+		return v:find( "[\n\r]" ) ~= nil
+	end
 	local function isWhitespace( v )
-		return v:find( "[ \n\t\r]" ) ~= nil
+		return v:find( "[ \t]" ) ~= nil or newLine( v )
 	end
 
 	-- Check if a charachter is a precedence?
 	local function isPrec( v )
-		return v:find( "[:%(%);,%{%}]" ) ~= nil
+		return v:find( "[:%(%)&;,%{%}]" ) ~= nil
 	end
 
 	-- Check if a charachter is an operator
@@ -46,6 +52,33 @@ local function tokenize( input )
 			str = str .. input.next()
 		end
 		return str
+	end
+
+	local function doWhileNumber()
+		if input.peek() == "0" then
+			input.next()
+			local zero = "0"
+			if input.peek():upper() == "X" then
+				input.next()
+				return tonumber( "0x"..doWhile( isHexNumber ) )
+			else 
+				return zero .. doWhile( isNumber )
+			end
+		else
+			return doWhile( isNumber )
+		end
+	end
+
+	local function comment()
+		if input.peek() == "/" then
+			input.next()
+			if input.peek() == "/" then
+				input.next()
+				doWhile( function( v )
+					return not newLine( v )
+				end )
+			end
+		end
 	end
 
 	-- Magic
@@ -64,7 +97,7 @@ local function tokenize( input )
 		elseif isNumber( peek ) then
 			return {
 				type = "num";
-				value = doWhile( isNumber );
+				value = doWhileNumber();
 			}
 		elseif isPrec( peek ) then
 			return {
@@ -72,10 +105,22 @@ local function tokenize( input )
 				value = input.next();
 			}
 		elseif isOp( peek ) then
-			return {
-				type = "op";
-				value = doWhile( isOp );
-			}
+			if peek == "/" then
+				comment()
+				if input.peek() == "/" then
+					return {
+						type = "op";
+						value = doWhile( isOp );
+					}
+				else
+					return n()
+				end
+			else
+				return {
+					type = "op";
+					value = doWhile( isOp );
+				}
+			end
 		else
 			error( "Line:"..input.getLine()..": Tokenizing error.", 0 )
 		end
@@ -106,6 +151,7 @@ local function tokenize( input )
 	return {
 		-- This is a hacky way to remove 'self' object.
 		next = _next;
+		input = input;
 		peek = p;
 		eof = function()
 			return input.eof() and p() ~= nil
